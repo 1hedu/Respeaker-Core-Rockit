@@ -14,8 +14,8 @@
 // Maximum number of patches
 #define MAX_PATCHES 16
 
-// Patch storage directory
-#define PATCH_DIR "/tmp/rockit_patches"
+// Patch storage directory (persistent across reboots)
+#define PATCH_DIR "/root/rockit_patches"
 
 /**
  * Initialize patch storage system
