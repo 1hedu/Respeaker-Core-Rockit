@@ -3,9 +3,9 @@
 static int16_t V[P_COUNT];
 
 const param_spec_t PARAM_SPECS[P_COUNT] = {
-  // Oscillators (0-8: 9 waveforms matching original Rockit)
-  [P_OSC1_WAVE]     = {"osc1_wave",   0, 8,   2},  // 0-8: Sine,Tri,Saw,Sq,Para,HS1,HS2,M1,M2
-  [P_OSC2_WAVE]     = {"osc2_wave",   0, 8,   3},
+  // Oscillators (0-15: 16 waveforms matching original Rockit)
+  [P_OSC1_WAVE]     = {"osc1_wave",   0, 15,  2},  // 0-15: Sine,Square,Saw,Tri,Morph1-9,HardSync,Noise,RawSquare
+  [P_OSC2_WAVE]     = {"osc2_wave",   0, 15,  3},
   [P_OSC_MIX]       = {"osc_mix",     0, 127, 64},
   [P_TUNE]          = {"tune",      -64, 64,  0},
   [P_FINE]          = {"fine",      -64, 64,  0},

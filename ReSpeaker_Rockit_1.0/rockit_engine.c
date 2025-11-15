@@ -497,8 +497,8 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
         // Oscillators
         case 72: params_set(P_OSC_MIX, value); break;
         case 76: params_set(P_SUBOSC, (value>=64)?1:0); break;
-        case 80: params_set(P_OSC1_WAVE, value >> 4); break;         // 0-8 from 0-127 (9 waveforms)
-        case 81: params_set(P_OSC2_WAVE, value >> 4); break;         // 0-8 from 0-127
+        case 80: params_set(P_OSC1_WAVE, value >> 3); break;         // 0-15 from 0-127 (16 waveforms)
+        case 81: params_set(P_OSC2_WAVE, value >> 3); break;         // 0-15 from 0-127
         case 82: params_set(P_TUNE, value); break;
         case 83: params_set(P_FINE, value); break;
 
