@@ -454,20 +454,23 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // OSC1: Always at base tuning (no detune)
     // Keep inc1 as set in voice_trigger
 
-    // OSC2: Sub-osc mode OR detune (may be LFO-modulated)
+    // OSC2: Sub-osc mode OR detune
     // Original Rockit: When sub-osc is ON, OSC2 locked to one octave below, ignores detune
     uint8_t sub_osc_mode = params_get(P_SUBOSC);
     if(sub_osc_mode) {
         // Sub-osc mode: OSC2 locked to one octave below (note - 12), ignore tune parameter
         uint8_t sub_note = (v->note >= 12) ? (v->note - 12) : 0;
-        v->inc2 = calc_phase_inc(sub_note, 0, sr);
-        v->inc_target = v->inc2;
-    } else {
-        // Normal mode: Always recalculate with current tune (may be LFO-modulated)
-        // This allows LFO detune/vibrato to work properly
-        v->inc2 = calc_phase_inc(v->note, tune, sr);
-        v->inc_target = v->inc2;
+        uint32_t sub_inc = calc_phase_inc(sub_note, 0, sr);
+        // Only update inc_target if it changed (don't break glide with per-sample updates)
+        if(v->inc_target != sub_inc) {
+            v->inc_target = sub_inc;
+        }
+    } else if(g_tuning_dirty) {
+        // Normal mode: Only recalculate when base tune parameter actually changed
+        // This preserves glide behavior and prevents numerical instability
+        v->inc_target = calc_phase_inc(v->note, tune, sr);
     }
+    // Note: LFO vibrato is applied AFTER glide, as a frequency multiplier
 
     // Glide (affects OSC2 only) - smooth transition between inc_cur and inc_target
     float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
@@ -488,6 +491,23 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
         }
         // Apply glide to OSC2
         v->inc2 = v->inc_cur;
+    } else {
+        // No glide - use target directly
+        v->inc2 = v->inc_target;
+    }
+
+    // Apply LFO vibrato/detune modulation AFTER glide
+    // LFO modulation is applied as a frequency multiplier (in semitones)
+    // This allows vibrato to work without breaking glide interpolation
+    if(!sub_osc_mode) {
+        // Calculate vibrato as deviation from base tune (centered at 64)
+        int tune_deviation = tune - 64;  // -64 to +63 (from base tune of 64)
+        if(tune_deviation != 0) {
+            // Apply as frequency multiplier: 2^(semitones/12)
+            // tune_deviation/4.0 gives ±16 semitones range
+            float vibrato_ratio = powf(2.0f, (tune_deviation / 4.0f) / 12.0f);
+            v->inc2 = (uint32_t)((double)v->inc2 * vibrato_ratio);
+        }
     }
     
     // Oscillators with anti-aliasing and TIME-VARYING MORPHING
