@@ -168,7 +168,8 @@
         </div>
         
         <div class="panel">
-            <div class="panel-title">LFO (Low Frequency Oscillator)</div>
+            <div class="panel-title">LFO 1 (Modulation Wheel)</div>
+            <p style="font-size: 0.75em; color: #888; margin-bottom: 8px;">Working destinations: Amp, Detune • Filter modulation disabled (causes artifacts)</p>
             <div class="controls">
                 <div class="control-group">
                     <div class="control-label"><span>Rate</span><span class="control-value" id="lforate-val">32</span></div>
@@ -202,12 +203,12 @@
                 <div class="control-group">
                     <div class="control-label"><span>Destination</span></div>
                     <select id="lfodest" data-cc="89">
-                        <option value="0" selected>Amp</option>
-                        <option value="16">Filter</option>
-                        <option value="32">Filter Q</option>
-                        <option value="48">Filter Env</option>
-                        <option value="64">Pitch</option>
-                        <option value="80">Detune</option>
+                        <option value="0" selected>Amp (tremolo)</option>
+                        <option value="16">Filter (disabled)</option>
+                        <option value="32">Filter Q (disabled)</option>
+                        <option value="48">Filter Env (todo)</option>
+                        <option value="64">Pitch (todo)</option>
+                        <option value="80">Detune (vibrato)</option>
                     </select>
                 </div>
             </div>

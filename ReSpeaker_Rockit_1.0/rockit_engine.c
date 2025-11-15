@@ -594,6 +594,9 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
     svf_set_cutoff(&flt, cutoff_hz);
     svf_set_q(&flt, q);
 
+    // Get filter mode for later use in the loop
+    int filter_mode = params_get(P_FILTER_MODE);
+
     // Master Volume - Exponential curve for perceptual uniformity (like pro audio gear)
     // Linear volume sounds unnatural - use squared curve for better control at low volumes
     // 0 → silence, 64 → -12dB, 127 → 0dB (full)
@@ -691,26 +694,24 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         // LFO2 destinations: 0:Mix, 1:Filter, 2:FilterQ, 3:LFO1Rate, 4:LFO1Depth, 5:FilterAtk
 
         int16_t modulated_vol = params_get(P_MASTER_VOL);
-        int16_t modulated_cutoff = params_get(P_FILTER_CUTOFF);
-        int16_t modulated_q = params_get(P_FILTER_RESONANCE);
         int16_t modulated_mix = params_get(P_OSC_MIX);
         int16_t modulated_tune = tune;  // Already loaded from outer scope
 
-        // LFO 1 routing
+        // LFO 1 routing (only safe per-sample modulations - no filter!)
         switch(lfo1_dest) {
             case 0: modulated_vol += lfo1_mod; break;       // Amplitude
-            case 1: modulated_cutoff += lfo1_mod; break;    // Filter Cutoff
-            case 2: modulated_q += lfo1_mod; break;         // Filter Q
+            case 1: break;  // Filter Cutoff - DISABLED (can't update coefficients per-sample)
+            case 2: break;  // Filter Q - DISABLED (can't update coefficients per-sample)
             case 3: break;  // Filter Env Amount - not implemented yet
             case 4: break;  // Pitch Shift - global pitch bend, complex
             case 5: modulated_tune += lfo1_mod; break;      // Detune
         }
 
-        // LFO 2 routing
+        // LFO 2 routing (only safe per-sample modulations - no filter!)
         switch(lfo2_dest) {
             case 0: modulated_mix += lfo2_mod; break;       // OSC Mix
-            case 1: modulated_cutoff += lfo2_mod; break;    // Filter Cutoff
-            case 2: modulated_q += lfo2_mod; break;         // Filter Q
+            case 1: break;  // Filter Cutoff - DISABLED (can't update coefficients per-sample)
+            case 2: break;  // Filter Q - DISABLED (can't update coefficients per-sample)
             case 3: break;  // LFO1 Rate - meta-modulation, complex
             case 4: break;  // LFO1 Depth - meta-modulation, complex
             case 5: break;  // Filter Attack - not implemented yet
@@ -719,21 +720,10 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         // Clamp modulated values to valid ranges
         if(modulated_vol < 0) modulated_vol = 0;
         if(modulated_vol > 127) modulated_vol = 127;
-        if(modulated_cutoff < 0) modulated_cutoff = 0;
-        if(modulated_cutoff > 127) modulated_cutoff = 127;
-        if(modulated_q < 0) modulated_q = 0;
-        if(modulated_q > 127) modulated_q = 127;
         if(modulated_mix < 0) modulated_mix = 0;
         if(modulated_mix > 127) modulated_mix = 127;
         if(modulated_tune < 0) modulated_tune = 0;
         if(modulated_tune > 127) modulated_tune = 127;
-
-        // Update filter with modulated parameters
-        float cutoff_norm = modulated_cutoff / 127.0f;
-        float cutoff_hz_mod = 20.0f * powf(1000.0f, cutoff_norm);
-        float q_mod = 0.5f + (modulated_q/127.0f) * 19.5f;
-        svf_set_cutoff(&flt, cutoff_hz_mod);
-        svf_set_q(&flt, q_mod);
 
         // Apply exponential curve to modulated volume (LFO tremolo affects volume curve)
         float vol_norm_mod = modulated_vol / 127.0f;
@@ -759,9 +749,15 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
             mix = mix / active_voices;
         }
 
-        // Convert to float for filter (filter already updated with LFO modulation)
+        // Convert to float for filter and apply correct filter mode
         float sf = (float)sat16(mix) / 32768.0f;
-        sf = svf_process_lp(&flt, sf);
+        switch(filter_mode) {
+            case 0: sf = svf_process_lp(&flt, sf); break;  // Lowpass
+            case 1: sf = svf_process_hp(&flt, sf); break;  // Highpass
+            case 2: sf = svf_process_bp(&flt, sf); break;  // Bandpass
+            case 3: sf = svf_process_notch(&flt, sf); break;  // Notch
+            default: sf = svf_process_lp(&flt, sf); break;
+        }
         int16_t filtered = (int16_t)(sf * 32768.0f);
 
         // Apply modulated master volume
