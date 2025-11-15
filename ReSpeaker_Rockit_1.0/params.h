@@ -36,7 +36,8 @@ typedef enum {
   // Global
   P_GLIDE_TIME,
   P_MASTER_VOL,
-  
+  P_DRONE_MODE,   // 0:off 1:on - Continuous note with manual pitch/volume control
+
   P_COUNT
 } param_id_t;
 

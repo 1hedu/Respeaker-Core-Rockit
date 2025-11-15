@@ -617,7 +617,48 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
             V[v].sus_q = sus_q;
         }
     }
-    
+
+    // ==== DRONE MODE ====
+    // Continuous note-on with manual pitch/amplitude control (from original Rockit)
+    // - ENV_ATTACK controls pitch (0-127 = MIDI notes 0-127)
+    // - ENV_SUSTAIN controls amplitude (envelope forced to sustain level)
+    static uint8_t prev_drone_mode = 0;
+    static uint8_t drone_triggered = 0;
+    uint8_t drone_mode = params_get(P_DRONE_MODE);
+
+    if(drone_mode) {
+        // Drone mode is active
+        uint8_t drone_note = params_get(P_ENV_ATTACK);  // Use attack knob for pitch (0-127)
+
+        // On drone mode activation, trigger a note
+        if(!prev_drone_mode) {
+            rockit_note_on(drone_note);
+            drone_triggered = 1;
+        }
+
+        // Keep the drone playing by forcing envelope to sustain state
+        // The sustain level is already controlled by ENV_SUSTAIN parameter above
+        for(int v=0; v<3; v++){
+            if(V[v].active){
+                // Force envelope to sustain state for continuous sound
+                V[v].env = ENV_SUSTAIN;
+                // Sustain level is already set from sus_q above
+            }
+        }
+    } else {
+        // Drone mode deactivated
+        if(prev_drone_mode && drone_triggered) {
+            // Release all voices when leaving drone mode
+            for(int v=0; v<3; v++){
+                if(V[v].active){
+                    V[v].env = ENV_RELEASE;
+                }
+            }
+            drone_triggered = 0;
+        }
+    }
+    prev_drone_mode = drone_mode;
+
     for(size_t i=0; i<frames; i++){
         // ==== LFO MODULATION SYSTEM (matches original Rockit routing) ====
 
@@ -804,6 +845,7 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
 
         // Global
         case 90: params_set(P_GLIDE_TIME, value); break;
+        case 91: params_set(P_DRONE_MODE, value >= 64 ? 1 : 0); break;  // Toggle: 0-63=off, 64-127=on
 
         default: break;
     }

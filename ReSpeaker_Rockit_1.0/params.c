@@ -37,6 +37,7 @@ const param_spec_t PARAM_SPECS[P_COUNT] = {
   // Global
   [P_GLIDE_TIME]    = {"glide_ms",    0, 127, 0},
   [P_MASTER_VOL]    = {"volume",      0, 127, 100},
+  [P_DRONE_MODE]    = {"drone_mode",  0, 1,   0},   // 0:off 1:on
 };
 
 void params_init(void){ 
