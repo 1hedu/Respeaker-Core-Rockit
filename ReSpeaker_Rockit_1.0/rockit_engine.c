@@ -454,23 +454,14 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // Keep inc1 as set in voice_trigger
 
     // OSC2 Architecture (matching original Rockit):
-    // 1. Start with BASE note frequency (same as OSC1, or one octave down for sub-osc)
-    // 2. Apply glide to BASE frequency
+    // 1. BASE frequency (inc_target) is set in voice_trigger() and remains stable
+    // 2. Apply glide to BASE frequency (inc_target -> inc_cur -> inc2)
     // 3. Then apply detune (including LFO modulation) as frequency multiplier
 
-    uint8_t sub_osc_mode = params_get(P_SUBOSC);
+    // NOTE: inc_target is pre-calculated in voice_trigger() - DO NOT recalculate here!
+    // Recalculating every sample causes severe performance issues (144k calls/sec)
 
-    // Determine base frequency target for glide
-    if(sub_osc_mode) {
-        // Sub-osc: one octave below base note
-        uint8_t sub_note = (v->note >= 12) ? (v->note - 12) : 0;
-        v->inc_target = calc_phase_inc(sub_note, 0, sr);
-    } else {
-        // Normal: same as OSC1 (base note, no detune yet)
-        v->inc_target = calc_phase_inc(v->note, 0, sr);
-    }
-
-    // Apply glide to base frequency
+    // Apply glide to base frequency (uses pre-calculated inc_target from voice_trigger)
     float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
     if(glide > 0.01f){
         uint32_t glide_rate = (uint32_t)(glide * 100.0f * (float)sr / 1000.0f);
@@ -493,14 +484,20 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     }
 
     // Now apply detune/vibrato AFTER glide (matches original Rockit architecture)
-    // This allows LFO vibrato to work without breaking glide
-    if(!sub_osc_mode && tune != 64) {
+    // Detune only applies to OSC2 in normal mode (not sub-osc mode)
+    // Sub-osc mode is determined at voice_trigger() time via inc_target
+    // Check if this voice has detune enabled by comparing inc_target to inc1
+    if(v->inc_target == v->inc1) {
+        // inc_target == inc1 means normal mode (not sub-osc)
         // Apply detune as frequency multiplier
-        // tune: 0-127, center 64, maps to ±16 semitones
-        float semitone_offset = (tune - 64) / 4.0f;  // -16 to +16 semitones
-        float detune_ratio = powf(2.0f, semitone_offset / 12.0f);
-        v->inc2 = (uint32_t)((double)v->inc2 * detune_ratio);
+        if(tune != 64) {
+            // tune: 0-127, center 64, maps to ±16 semitones
+            float semitone_offset = (tune - 64) / 4.0f;  // -16 to +16 semitones
+            float detune_ratio = powf(2.0f, semitone_offset / 12.0f);
+            v->inc2 = (uint32_t)((double)v->inc2 * detune_ratio);
+        }
     }
+    // else: sub-osc mode (inc_target != inc1), detune is ignored
     
     // Oscillators with anti-aliasing and TIME-VARYING MORPHING
     wave_t w1 = (wave_t)params_get(P_OSC1_WAVE);
