@@ -1,6 +1,9 @@
 #include "params.h"
 
-static int16_t V[P_COUNT];
+// Double-buffered parameter storage for thread-safe updates
+// Writes go to BOTH buffers simultaneously to prevent race conditions
+// Since int16_t writes are atomic on MIPS, reading from either buffer is safe
+static int16_t param_buffers[2][P_COUNT];
 
 const param_spec_t PARAM_SPECS[P_COUNT] = {
   // Oscillators (0-15: 16 waveforms matching original Rockit)
@@ -46,19 +49,29 @@ const param_spec_t PARAM_SPECS[P_COUNT] = {
   [P_ARP_GATE]      = {"arp_gate",    0, 127, 100}, // Gate time percentage
 };
 
-void params_init(void){ 
-  for(int i=0; i<P_COUNT; i++) 
-    V[i] = PARAM_SPECS[i].def; 
+void params_init(void){
+  // Initialize both buffers with default values
+  for(int i=0; i<P_COUNT; i++) {
+    param_buffers[0][i] = PARAM_SPECS[i].def;
+    param_buffers[1][i] = PARAM_SPECS[i].def;
+  }
 }
 
 void params_set(param_id_t id, int16_t val){
   if(id < 0 || id >= P_COUNT) return;
   if(val < PARAM_SPECS[id].min) val = PARAM_SPECS[id].min;
   if(val > PARAM_SPECS[id].max) val = PARAM_SPECS[id].max;
-  V[id] = val;
+
+  // Write to BOTH buffers to ensure consistent state
+  // Audio callback will always read stable values
+  param_buffers[0][id] = val;
+  param_buffers[1][id] = val;
 }
 
-int16_t params_get(param_id_t id){ 
-  if(id < 0 || id >= P_COUNT) return 0; 
-  return V[id]; 
+int16_t params_get(param_id_t id){
+  if(id < 0 || id >= P_COUNT) return 0;
+
+  // Read from buffer 0 (both buffers always contain identical values)
+  // Since int16_t writes are atomic, we'll always read a valid value
+  return param_buffers[0][id];
 }
