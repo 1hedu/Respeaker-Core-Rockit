@@ -597,12 +597,6 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
     // Get filter mode for later use in the loop
     int filter_mode = params_get(P_FILTER_MODE);
 
-    // Master Volume - Exponential curve for perceptual uniformity (like pro audio gear)
-    // Linear volume sounds unnatural - use squared curve for better control at low volumes
-    // 0 → silence, 64 → -12dB, 127 → 0dB (full)
-    float vol_norm = params_get(P_MASTER_VOL) / 127.0f;
-    int16_t vol_q = (int16_t)(32767.0f * vol_norm * vol_norm);  // Squared for perceptual linearity
-
     // LIVE ENVELOPE PARAMETER UPDATES - Read envelope params and update all active voices
     // This allows real-time parameter changes while notes are held (like real synths)
     float a_ms = ((float)params_get(P_ENV_ATTACK)/127.0f)*2000.0f;
