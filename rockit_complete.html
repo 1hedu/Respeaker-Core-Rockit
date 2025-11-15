@@ -169,32 +169,31 @@
         
         <div class="panel">
             <div class="panel-title">LFO 1 (Modulation Wheel)</div>
-            <p style="font-size: 0.75em; color: #888; margin-bottom: 8px;">Working destinations: Amp, Detune • Filter modulation disabled (causes artifacts)</p>
             <div class="controls">
                 <div class="control-group">
-                    <div class="control-label"><span>Rate</span><span class="control-value" id="lforate-val">32</span></div>
-                    <input type="range" id="lforate" min="0" max="127" value="32" data-cc="87">
+                    <div class="control-label"><span>Rate (0.01-20 Hz)</span><span class="control-value" id="lfo1rate-val">32</span></div>
+                    <input type="range" id="lfo1rate" min="0" max="127" value="32" data-cc="87">
                 </div>
                 <div class="control-group">
-                    <div class="control-label"><span>Depth</span><span class="control-value" id="lfodepth-val">0</span></div>
-                    <input type="range" id="lfodepth" min="0" max="127" value="0" data-cc="1">
+                    <div class="control-label"><span>Depth (Mod Wheel)</span><span class="control-value" id="lfo1depth-val">0</span></div>
+                    <input type="range" id="lfo1depth" min="0" max="127" value="0" data-cc="1">
                 </div>
                 <div class="control-group">
-                    <div class="control-label"><span>Shape</span></div>
-                    <select id="lfoshape" data-cc="88">
+                    <div class="control-label"><span>Waveform</span></div>
+                    <select id="lfo1shape" data-cc="88">
                         <option value="0" selected>Sine</option>
                         <option value="8">Square</option>
-                        <option value="16">Ramp</option>
+                        <option value="16">Sawtooth</option>
                         <option value="24">Triangle</option>
-                        <option value="32">Sq→Ramp Morph</option>
-                        <option value="40">Tri+Phaser</option>
-                        <option value="48">Phase Diff</option>
-                        <option value="56">Saw Fold</option>
-                        <option value="64">Sin→Sq Env</option>
-                        <option value="72">Saw→Sq Env</option>
-                        <option value="80">PWM</option>
-                        <option value="88">Tri→Nz→Pls</option>
-                        <option value="96">Env Follow</option>
+                        <option value="32">Morph 1 (Sq→Ramp)</option>
+                        <option value="40">Morph 2 (Tri+Phaser)</option>
+                        <option value="48">Morph 3 (Phase Diff)</option>
+                        <option value="56">Morph 4 (Saw Fold)</option>
+                        <option value="64">Morph 5 (Sin→Sq Env)</option>
+                        <option value="72">Morph 6 (Saw→Sq Env)</option>
+                        <option value="80">Morph 7 (PWM)</option>
+                        <option value="88">Morph 8 (Tri→Nz→Pls)</option>
+                        <option value="96">Morph 9 (Env Follow)</option>
                         <option value="104">Hard Sync</option>
                         <option value="112">Noise</option>
                         <option value="120">Raw Square</option>
@@ -202,13 +201,59 @@
                 </div>
                 <div class="control-group">
                     <div class="control-label"><span>Destination</span></div>
-                    <select id="lfodest" data-cc="89">
-                        <option value="0" selected>Amp (tremolo)</option>
-                        <option value="16">Filter (disabled)</option>
-                        <option value="32">Filter Q (disabled)</option>
-                        <option value="48">Filter Env (todo)</option>
-                        <option value="64">Pitch (todo)</option>
-                        <option value="80">Detune (vibrato)</option>
+                    <select id="lfo1dest" data-cc="89">
+                        <option value="0" selected>Amplitude (Tremolo)</option>
+                        <option value="16">Filter Cutoff</option>
+                        <option value="32">Filter Resonance</option>
+                        <option value="48">Filter Env Amount</option>
+                        <option value="64">Pitch Bend</option>
+                        <option value="80">OSC2 Detune (Vibrato)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">LFO 2</div>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label"><span>Rate (0.01-20 Hz)</span><span class="control-value" id="lfo2rate-val">32</span></div>
+                    <input type="range" id="lfo2rate" min="0" max="127" value="32" data-cc="95">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Depth</span><span class="control-value" id="lfo2depth-val">0</span></div>
+                    <input type="range" id="lfo2depth" min="0" max="127" value="0" data-cc="96">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Waveform</span></div>
+                    <select id="lfo2shape" data-cc="97">
+                        <option value="0" selected>Sine</option>
+                        <option value="8">Square</option>
+                        <option value="16">Sawtooth</option>
+                        <option value="24">Triangle</option>
+                        <option value="32">Morph 1 (Sq→Ramp)</option>
+                        <option value="40">Morph 2 (Tri+Phaser)</option>
+                        <option value="48">Morph 3 (Phase Diff)</option>
+                        <option value="56">Morph 4 (Saw Fold)</option>
+                        <option value="64">Morph 5 (Sin→Sq Env)</option>
+                        <option value="72">Morph 6 (Saw→Sq Env)</option>
+                        <option value="80">Morph 7 (PWM)</option>
+                        <option value="88">Morph 8 (Tri→Nz→Pls)</option>
+                        <option value="96">Morph 9 (Env Follow)</option>
+                        <option value="104">Hard Sync</option>
+                        <option value="112">Noise</option>
+                        <option value="120">Raw Square</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Destination</span></div>
+                    <select id="lfo2dest" data-cc="98">
+                        <option value="0" selected>OSC Mix</option>
+                        <option value="16">Filter Cutoff</option>
+                        <option value="32">Filter Resonance</option>
+                        <option value="48">LFO1 Rate</option>
+                        <option value="64">LFO1 Depth</option>
+                        <option value="80">Filter Attack</option>
                     </select>
                 </div>
             </div>
