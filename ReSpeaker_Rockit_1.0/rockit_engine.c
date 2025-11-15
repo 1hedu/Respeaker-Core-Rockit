@@ -192,7 +192,6 @@ static int g_sr = 48000;
 
 // Track tuning params to avoid expensive recalculation every sample
 static int16_t g_last_tune = -999;
-static int16_t g_last_fine = -999;
 static uint8_t g_tuning_dirty = 1;
 
 static const uint16_t FREQ[128]={
@@ -211,10 +210,21 @@ static inline uint32_t ms_to_samples(float ms, int sr){
     return (uint32_t)((ms*0.001f)*(float)sr);
 }
 
-static inline uint32_t calc_phase_inc(uint8_t note, int tune, int fine, int sr) {
-    int total_semi = tune;
-    float hz = (float)FREQ[note&0x7F] * semi(total_semi);
-    hz *= powf(2.0f, fine/768.0f);
+// Calculate phase increment with detune matching original Rockit firmware
+// tune_param: 0-127, center at 64, ±16 semitones range (matches original OSC_DETUNE)
+static inline uint32_t calc_phase_inc(uint8_t note, int tune_param, int sr) {
+    float semitone_offset;
+
+    if(tune_param == 0) {
+        // No tuning offset - use base frequency
+        semitone_offset = 0.0f;
+    } else {
+        // Match original Rockit: 0-127 input, center at 64
+        // Map to ±16 semitones: (value - 64) / 4.0
+        semitone_offset = (tune_param - 64) / 4.0f;
+    }
+
+    float hz = (float)FREQ[note&0x7F] * semi((int)semitone_offset);
     return hz_to_inc(hz, sr);
 }
 
@@ -225,17 +235,21 @@ static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     // v->ph1 = 0;
     // v->ph2 = 0;
 
-    // OSC1: Base tuning (no tune/fine offset)
-    v->inc1 = calc_phase_inc(note, 0, 0, sr);
+    // OSC1: Base tuning (no detune offset)
+    v->inc1 = calc_phase_inc(note, 0, sr);
 
-    // OSC2: With tune/fine offset
+    // OSC2: With detune (±16 semitones centered at 64)
     int tune = params_get(P_TUNE);
-    int fine = params_get(P_FINE);
-    v->inc2 = calc_phase_inc(note, tune, fine, sr);
+    v->inc_target = calc_phase_inc(note, tune, sr);
 
-    // Set target for glide
-    v->inc_target = v->inc2;
-    v->inc_cur = v->inc2;
+    // Glide/Portamento: If glide is OFF, jump immediately. If ON, glide from current to target.
+    int glide_param = params_get(P_GLIDE_TIME);
+    if(glide_param == 0) {
+        // No glide - jump immediately to new frequency
+        v->inc_cur = v->inc_target;
+        v->inc2 = v->inc_target;
+    }
+    // else: keep inc_cur at previous value, glide will interpolate in voice_tick
 
     v->env = ENV_ATTACK;
     v->env_q = 0;
@@ -258,21 +272,21 @@ static void voice_release(voice_state_t *v){
 }
 
 // OPTIMIZED: Only recalc tuning when params change
-static void update_voice_tuning_if_changed(voice_state_t *v, int tune, int fine, int sr){
+static void update_voice_tuning_if_changed(voice_state_t *v, int tune, int sr){
     if(g_tuning_dirty){
-        v->inc_target = calc_phase_inc(v->note, tune, fine, sr);
+        v->inc_target = calc_phase_inc(v->note, tune, sr);
     }
 }
 
-static int16_t voice_tick(voice_state_t *v, int sr, int tune, int fine){
+static int16_t voice_tick(voice_state_t *v, int sr, int tune){
     if(!v->active) return 0;
 
-    // OSC1: Always at base tuning (live update if note changes, but no tune/fine)
+    // OSC1: Always at base tuning (no detune)
     // Keep inc1 as set in voice_trigger
 
-    // OSC2: Update tuning live if tune/fine params changed
+    // OSC2: Update detune live if TUNE param changed
     if(g_tuning_dirty){
-        v->inc2 = calc_phase_inc(v->note, tune, fine, sr);
+        v->inc2 = calc_phase_inc(v->note, tune, sr);
         v->inc_target = v->inc2;
     }
 
@@ -389,13 +403,11 @@ void rockit_engine_init(rockit_engine_t *e){
 void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int sr){
     g_sr = sr;
 
-    // Check if tuning params changed (ONCE per render call, not per sample!)
+    // Check if tuning param changed (ONCE per render call, not per sample!)
     int16_t tune = params_get(P_TUNE);
-    int16_t fine = params_get(P_FINE);
-    g_tuning_dirty = (tune != g_last_tune || fine != g_last_fine);
+    g_tuning_dirty = (tune != g_last_tune);
     if(g_tuning_dirty){
         g_last_tune = tune;
-        g_last_fine = fine;
     }
 
     // LFO1 parameters
@@ -452,7 +464,7 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         int active_voices = 0;
         for(int v=0; v<3; v++){
             if(V[v].active){
-                mix += voice_tick(&V[v], sr, tune, fine);
+                mix += voice_tick(&V[v], sr, tune);
                 active_voices++;
             }
         }
@@ -540,8 +552,7 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
         case 76: params_set(P_SUBOSC, (value>=64)?1:0); break;
         case 80: params_set(P_OSC1_WAVE, value >> 3); break;         // 0-15 from 0-127 (16 waveforms)
         case 81: params_set(P_OSC2_WAVE, value >> 3); break;         // 0-15 from 0-127
-        case 82: params_set(P_TUNE, value); break;
-        case 83: params_set(P_FINE, value); break;
+        case 82: params_set(P_TUNE, value); break;                   // 0-127, center 64, ±16 semitones
 
         // Envelope (Amplitude)
         case 73: params_set(P_ENV_ATTACK, value); break;

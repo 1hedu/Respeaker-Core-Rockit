@@ -2,12 +2,11 @@
 #include <stdint.h>
 
 typedef enum {
-  // Oscillators (0-9 waveforms matching original Rockit)
-  P_OSC1_WAVE,    // 0:Sine 1:Tri 2:Saw 3:Square 4:Para 5:HS1 6:HS2 7:Mult1 8:Mult2
-  P_OSC2_WAVE, 
-  P_OSC_MIX, 
-  P_TUNE, 
-  P_FINE,
+  // Oscillators (16 waveforms matching original Rockit)
+  P_OSC1_WAVE,    // 0-15: Sine,Sq,Saw,Tri,Morph1-9,HardSync,Noise,RawSq
+  P_OSC2_WAVE,
+  P_OSC_MIX,
+  P_TUNE,         // Detune OSC2: 0-127, center 64, ±16 semitones
   P_SUBOSC,
   
   // Envelope
