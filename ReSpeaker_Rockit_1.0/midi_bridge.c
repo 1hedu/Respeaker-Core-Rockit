@@ -84,6 +84,18 @@ int url_match(const char *url, const char *path) {
 void handle_request(int client_sock, const char *request) {
     char response[256];
 
+    // Handle OPTIONS method for CORS preflight
+    if (strncmp(request, "OPTIONS", 7) == 0) {
+        snprintf(response, sizeof(response),
+            "HTTP/1.1 200 OK\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+            "Access-Control-Allow-Headers: Content-Type\r\n"
+            "Content-Length: 0\r\n\r\n");
+        send(client_sock, response, strlen(response), MSG_NOSIGNAL);
+        return;
+    }
+
     // Find GET/POST line
     const char *line_end = strchr(request, '\n');
     if (!line_end) return;
@@ -145,13 +157,29 @@ void handle_request(int client_sock, const char *request) {
         }
     }
     else if (url_match(url, "/status")) {
-        const char *status = (midi_sock >= 0) ? "connected" : "disconnected";
+        const char *status = (midi_sock >= 0) ? "OK" : "disconnected";
         snprintf(response, sizeof(response),
             "HTTP/1.1 200 OK\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "Content-Type: text/plain\r\n"
             "Content-Length: %zu\r\n\r\n%s",
             strlen(status), status);
+        send(client_sock, response, strlen(response), MSG_NOSIGNAL);
+        return;
+    }
+    else if (url_match(url, "/panic")) {
+        // Send Note Off for all 128 MIDI notes
+        if (midi_sock >= 0) {
+            int i;
+            for (i = 0; i < 128; i++) {
+                send_midi(midi_sock, 0x80, i, 0);  // Note Off for note i
+            }
+        }
+        snprintf(response, sizeof(response),
+            "HTTP/1.1 200 OK\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 2\r\n\r\nOK");
         send(client_sock, response, strlen(response), MSG_NOSIGNAL);
         return;
     }
