@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rockit Synth</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 10px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; color: #00d4ff; margin-bottom: 15px; font-size: 2em; }
+        .panel { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.1); }
+        .panel-title { color: #00d4ff; margin-bottom: 8px; font-size: 1em; font-weight: bold; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+        .control-group { display: flex; flex-direction: column; }
+        .control-label { font-size: 0.75em; color: #b0b0b0; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .control-value { color: #00d4ff; font-weight: bold; font-family: monospace; }
+        input[type="range"] { width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.1); outline: none; }
+        select { width: 100%; padding: 6px; background: rgba(0,0,0,0.3); color: #00d4ff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; font-size: 0.85em; }
+        .keyboard { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 15px; overflow-x: auto; }
+        .keys-container { display: flex; position: relative; height: 160px; min-width: 1100px; }
+        .key { border: 1px solid #333; border-radius: 0 0 4px 4px; cursor: pointer; user-select: none; position: absolute; }
+        .key.white { background: linear-gradient(to bottom, #fff 0%, #e0e0e0 100%); height: 160px; width: 28px; }
+        .key.white:active, .key.white.active { background: linear-gradient(to bottom, #00d4ff 0%, #0099cc 100%); }
+        .key.black { background: linear-gradient(to bottom, #2a2a2a 0%, #000 100%); height: 100px; width: 18px; z-index: 2; }
+        .key.black:active, .key.black.active { background: linear-gradient(to bottom, #00d4ff 0%, #0099cc 100%); }
+        .key-label { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 0.65em; color: #666; font-weight: bold; }
+        .key.black .key-label { color: #888; bottom: 4px; font-size: 0.55em; }
+        button { padding: 8px 16px; background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 0.85em; font-weight: bold; margin: 3px; }
+        button:active { transform: translateY(1px); }
+        button.panic { background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%); }
+        button.toggle { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); }
+        button.toggle.active { background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%); }
+        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .status { text-align: center; padding: 6px; background: rgba(0,212,255,0.1); border-radius: 6px; margin-top: 12px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎹 Rockit Synth</h1>
+        
+        <div class="panel">
+            <div class="panel-title">Keyboard (C2-C6)</div>
+            <div class="keyboard"><div class="keys-container" id="keyboard"></div></div>
+        </div>
+        
+        <div class="grid-2col">
+            <div class="panel">
+                <div class="panel-title">Oscillator 1</div>
+                <div class="controls">
+                    <div class="control-group">
+                        <div class="control-label"><span>Waveform</span></div>
+                        <select id="osc1wave" data-cc="80">
+                            <option value="0">Sine</option>
+                            <option value="1">Triangle</option>
+                            <option value="2">Sawtooth</option>
+                            <option value="3">Square</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">Oscillator 2</div>
+                <div class="controls">
+                    <div class="control-group">
+                        <div class="control-label"><span>Waveform</span></div>
+                        <select id="osc2wave" data-cc="81">
+                            <option value="0">Sine</option>
+                            <option value="1">Triangle</option>
+                            <option value="2" selected>Sawtooth</option>
+                            <option value="3">Square</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">Oscillator Mix & Tuning</div>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label"><span>Mix (Osc1 ← → Osc2)</span><span class="control-value" id="oscmix-val">64</span></div>
+                    <input type="range" id="oscmix" min="0" max="127" value="64" data-cc="72">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Coarse Tune (semitones)</span><span class="control-value" id="tune-val">64</span></div>
+                    <input type="range" id="tune" min="0" max="127" value="64" data-cc="82">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Fine Tune</span><span class="control-value" id="fine-val">64</span></div>
+                    <input type="range" id="fine" min="0" max="127" value="64" data-cc="83">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Sub Oscillator</span></div>
+                    <button class="toggle" id="subosc" data-cc="76" data-state="0">OFF</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">Filter</div>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label"><span>Mode</span></div>
+                    <select id="filtermode" data-cc="84">
+                        <option value="0" selected>Lowpass</option>
+                        <option value="1">Highpass</option>
+                        <option value="2">Bandpass</option>
+                        <option value="3">Notch</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Cutoff</span><span class="control-value" id="cutoff-val">100</span></div>
+                    <input type="range" id="cutoff" min="0" max="127" value="100" data-cc="74">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Resonance</span><span class="control-value" id="resonance-val">20</span></div>
+                    <input type="range" id="resonance" min="0" max="127" value="20" data-cc="71">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Envelope Amount</span><span class="control-value" id="filterenv-val">64</span></div>
+                    <input type="range" id="filterenv" min="0" max="127" value="64" data-cc="85">
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">Amplitude Envelope (ADSR)</div>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label"><span>Attack</span><span class="control-value" id="attack-val">5</span></div>
+                    <input type="range" id="attack" min="0" max="127" value="5" data-cc="73">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Decay</span><span class="control-value" id="decay-val">40</span></div>
+                    <input type="range" id="decay" min="0" max="127" value="40" data-cc="75">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Sustain</span><span class="control-value" id="sustain-val">100</span></div>
+                    <input type="range" id="sustain" min="0" max="127" value="100" data-cc="86">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Release</span><span class="control-value" id="release-val">30</span></div>
+                    <input type="range" id="release" min="0" max="127" value="30" data-cc="70">
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">LFO (Low Frequency Oscillator)</div>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="control-label"><span>Rate</span><span class="control-value" id="lforate-val">32</span></div>
+                    <input type="range" id="lforate" min="0" max="127" value="32" data-cc="87">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Depth</span><span class="control-value" id="lfodepth-val">0</span></div>
+                    <input type="range" id="lfodepth" min="0" max="127" value="0" data-cc="1">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Shape</span></div>
+                    <select id="lfoshape" data-cc="88">
+                        <option value="0" selected>Sine</option>
+                        <option value="32">Triangle</option>
+                        <option value="64">Ramp</option>
+                        <option value="96">Square</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Destination</span></div>
+                    <select id="lfodest" data-cc="89">
+                        <option value="0" selected>Off</option>
+                        <option value="32">Pitch</option>
+                        <option value="64">Mix</option>
+                        <option value="96">Filter</option>
+                        <option value="127">PWM</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">Voice Mode & Global</div>
+            <div class="controls">
+                <button class="toggle" id="monopara" data-cc="102" data-state="0">Mono</button>
+                <button class="toggle" id="voicecount" data-cc="103" data-state="0">2-Voice</button>
+                <div class="control-group">
+                    <div class="control-label"><span>Glide Time</span><span class="control-value" id="glide-val">0</span></div>
+                    <input type="range" id="glide" min="0" max="127" value="0" data-cc="90">
+                </div>
+                <div class="control-group">
+                    <div class="control-label"><span>Master Volume</span><span class="control-value" id="volume-val">100</span></div>
+                    <input type="range" id="volume" min="0" max="127" value="100" data-cc="7">
+                </div>
+            </div>
+            <button class="panic" id="panic">🚨 PANIC (All Notes Off)</button>
+        </div>
+        
+        <div class="status" id="status">Connecting...</div>
+    </div>
+
+    <script>
+        var MIDI_API = 'http://' + window.location.hostname + ':8090';
+        
+        function sendCC(cc, value) {
+            fetch(MIDI_API + '/cc?cc=' + cc + '&value=' + value, { method: 'POST' })
+                .catch(function(e) { console.error(e); });
+        }
+        
+        function sendNote(note, action, velocity) {
+            velocity = velocity || 100;
+            fetch(MIDI_API + '/note?note=' + note + '&action=' + action + '&velocity=' + velocity, { method: 'POST' })
+                .catch(function(e) { console.error(e); });
+        }
+        
+        function checkConnection() {
+            fetch(MIDI_API + '/status')
+                .then(function() { document.getElementById('status').textContent = 'Connected • TCP MIDI Active'; })
+                .catch(function() { document.getElementById('status').textContent = '⚠️ MIDI bridge not running'; });
+        }
+        checkConnection();
+        
+        // Setup sliders
+        var sliders = document.querySelectorAll('input[type="range"]');
+        for (var i = 0; i < sliders.length; i++) {
+            (function(slider) {
+                slider.addEventListener('input', function(e) {
+                    var value = parseInt(e.target.value);
+                    var display = document.getElementById(e.target.id + '-val');
+                    display.textContent = value;
+                    sendCC(parseInt(e.target.getAttribute('data-cc')), value);
+                });
+            })(sliders[i]);
+        }
+        
+        // Setup selects
+        var selects = document.querySelectorAll('select');
+        for (var i = 0; i < selects.length; i++) {
+            (function(sel) {
+                sel.addEventListener('change', function(e) {
+                    var value = parseInt(e.target.value);
+                    sendCC(parseInt(e.target.getAttribute('data-cc')), value);
+                });
+            })(selects[i]);
+        }
+        
+        // Setup toggles
+        var toggles = document.querySelectorAll('button.toggle');
+        for (var i = 0; i < toggles.length; i++) {
+            (function(btn) {
+                btn.addEventListener('click', function() {
+                    var cc = parseInt(this.getAttribute('data-cc'));
+                    var state = parseInt(this.getAttribute('data-state'));
+                    state = state === 0 ? 1 : 0;
+                    this.setAttribute('data-state', state);
+                    
+                    if (this.id === 'subosc') {
+                        this.textContent = state === 1 ? 'ON' : 'OFF';
+                        this.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    } else if (this.id === 'monopara') {
+                        this.textContent = state === 1 ? 'Para' : 'Mono';
+                        this.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    } else if (this.id === 'voicecount') {
+                        this.textContent = state === 1 ? '3-Voice' : '2-Voice';
+                        this.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    }
+                });
+            })(toggles[i]);
+        }
+        
+        // Panic
+        document.getElementById('panic').addEventListener('click', function() {
+            fetch(MIDI_API + '/panic', { method: 'POST' });
+            var keys = document.querySelectorAll('.key.active');
+            for (var i = 0; i < keys.length; i++) { keys[i].classList.remove('active'); }
+        });
+        
+        // Build keyboard (C2 to C6 = 4 octaves + 1 note = 49 keys)
+        var keyboard = document.getElementById('keyboard');
+        var notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        var startNote = 36; // C2
+        var whiteKeys = [];
+        var blackKeys = [];
+        
+        // Generate 4 octaves + C
+        for (var octave = 0; octave < 5; octave++) {
+            for (var i = 0; i < 12; i++) {
+                if (octave === 4 && i > 0) break; // Stop after C6
+                
+                var noteName = notes[i];
+                var midiNote = startNote + (octave * 12) + i;
+                var isBlack = noteName.indexOf('#') !== -1;
+                
+                var key = document.createElement('div');
+                key.className = 'key ' + (isBlack ? 'black' : 'white');
+                key.setAttribute('data-note', midiNote);
+                
+                var label = document.createElement('div');
+                label.className = 'key-label';
+                label.textContent = noteName + (2 + octave);
+                key.appendChild(label);
+                
+                if (isBlack) {
+                    blackKeys.push(key);
+                } else {
+                    whiteKeys.push(key);
+                }
+            }
+        }
+        
+        // Position white keys
+        for (var i = 0; i < whiteKeys.length; i++) {
+            whiteKeys[i].style.left = (i * 28) + 'px';
+            keyboard.appendChild(whiteKeys[i]);
+        }
+        
+        // Position black keys
+        var blackPattern = [1, 3, 6, 8, 10]; // C#, D#, F#, G#, A# positions in octave
+        var whiteIdx = 0;
+        for (var octave = 0; octave < 5; octave++) {
+            for (var p = 0; p < blackPattern.length; p++) {
+                if (octave === 4) break; // No black keys in final C
+                
+                var noteIdx = blackPattern[p];
+                var whitePos = whiteIdx + Math.floor(noteIdx / 2) + (noteIdx >= 5 ? 0 : 0);
+                var key = blackKeys[octave * 5 + p];
+                if (key) {
+                    key.style.left = (whitePos * 28 + 20) + 'px';
+                    keyboard.appendChild(key);
+                }
+            }
+            whiteIdx += 7;
+        }
+        
+        // Add mouse/touch handlers to all keys
+        var allKeys = document.querySelectorAll('.key');
+        for (var i = 0; i < allKeys.length; i++) {
+            (function(k) {
+                k.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    this.classList.add('active');
+                    sendNote(parseInt(this.getAttribute('data-note')), 'on');
+                });
+                k.addEventListener('mouseup', function() {
+                    this.classList.remove('active');
+                    sendNote(parseInt(this.getAttribute('data-note')), 'off');
+                });
+                k.addEventListener('mouseleave', function() {
+                    if (this.classList.contains('active')) {
+                        this.classList.remove('active');
+                        sendNote(parseInt(this.getAttribute('data-note')), 'off');
+                    }
+                });
+                k.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    this.classList.add('active');
+                    sendNote(parseInt(this.getAttribute('data-note')), 'on');
+                });
+                k.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('active');
+                    sendNote(parseInt(this.getAttribute('data-note')), 'off');
+                });
+            })(allKeys[i]);
+        }
+    </script>
+</body>
+</html>
