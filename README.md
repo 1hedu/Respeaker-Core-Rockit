@@ -270,7 +270,7 @@ For issues specific to this ReSpeaker port, please open an issue on GitHub.
 
 For questions about the original Rockit firmware, see waybackmachine http://hackmeopen.com/
 
-HUGE Shoutout to the Rockit Synth creator, Matt Heins. 
+HUGE Shoutout to the Rockit Synth creator, Matt Heins. I was a Kickstarter backer of the Rockit project, and he was kind enough to use me a test guineapig for I belive fw vw1.11. He even sent me a new 644p with it preloaded, since it was unlikely especially back then that I would have an AVR programmer of any sort. And i returned this courtesy by losing interest for like 5 years before I desoldered the old chip and replaced it with the one he'd sent so long ago(2011).  This was 2017, and almost 10 years beyond that, here I am, [probably not] keeping this baby alive (by porting it to another dead platform (:, albeit with the same enhancements, see https://github.com/1hedu/Hackme-Rockit-1.13-paraphonic). Anyway Matt, thank you for delivering me such a great product. It continues to keep me occupied.
 
 ---
 
