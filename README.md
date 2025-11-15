@@ -52,20 +52,42 @@ scp respeaker_rockit root@respeaker.local:/root/
 
 ### Running
 
+**Quick Start (Recommended):**
 ```bash
 # On ReSpeaker device
 ssh root@respeaker.local
 cd /root
-./respeaker_rockit hw:0,0 --tcp-midi
+chmod +x start_rockit.sh
+./start_rockit.sh
 ```
 
-The synth will start and listen for MIDI on TCP port 50000.
+This launches both the synth engine and the C MIDI bridge automatically.
+
+**Manual Start:**
+```bash
+# Start synth engine (listens on TCP port 50000)
+./respeaker_rockit --tcp-midi &
+
+# Start MIDI bridge (HTTP port 8090 -> MIDI port 50000)
+./midi_bridge &
+```
 
 ### Web Interface
 
 1. Copy `rockit_complete.html` to a web server or open locally
 2. Update the IP address in the HTML to point to your ReSpeaker
 3. Open in browser to control all parameters
+
+The web UI sends HTTP requests to port 8090, which the MIDI bridge converts to raw MIDI and forwards to the synth engine on port 50000.
+
+### Performance Notes
+
+**v1.1 Improvements:**
+- **C MIDI Bridge**: Replaced Python HTTP server with lightweight C implementation
+  - Eliminates Python interpreter overhead on embedded MIPS
+  - ~10-100x faster HTTP request handling
+  - Fixes slider stability issues when moving controls rapidly
+  - Lower CPU usage and memory footprint
 
 ## Project Structure
 
@@ -75,7 +97,7 @@ The synth will start and listen for MIDI on TCP port 50000.
 │   ├── main.c                    # Entry point, ALSA setup, MIDI server
 │   ├── rockit_engine.c           # Synth engine (oscillators, envelope, filter)
 │   ├── rockit_engine.h
-│   ├── params.c                  # Parameter management
+│   ├── params.c                  # Parameter management (thread-safe double buffering)
 │   ├── params.h
 │   ├── paraphonic.h              # Voice allocation
 │   ├── wavetables.c              # Waveform lookup tables
@@ -84,6 +106,10 @@ The synth will start and listen for MIDI on TCP port 50000.
 │   ├── filter_svf.h
 │   ├── socket_midi_raw.c         # TCP MIDI server
 │   ├── socket_midi_raw.h
+│   ├── patch_storage.c           # Persistent patch save/load
+│   ├── patch_storage.h
+│   ├── midi_bridge.c             # Fast C HTTP->MIDI bridge (port 8090)
+│   ├── start_rockit.sh           # Startup script for synth + bridge
 │   ├── avr_compat.h              # AVR compatibility shims
 │   └── Makefile
 │

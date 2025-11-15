@@ -1,6 +1,7 @@
 # Cross-compiler setup
 CC = mipsel-openwrt-linux-gcc
 TARGET = respeaker_rockit
+BRIDGE = midi_bridge
 
 STAGING = $(HOME)/respeaker-staging
 # -mdsp enables MIPS DSP ASE Rev 1 (provides ~3x speedup for audio processing)
@@ -11,11 +12,15 @@ LDFLAGS = -Wl,--no-as-needed -L$(STAGING)/usr/lib -Wl,-rpath-link,$(STAGING)/usr
 SRCS = main.c rockit_engine.c params.c wavetables.c filter_svf.c socket_midi_raw.c patch_storage.c
 OBJS = $(SRCS:.c=.o)
 
-all: $(TARGET)
+all: $(TARGET) $(BRIDGE)
 
 $(TARGET): $(OBJS)
     # The linking stage, using the correct library paths for the uClibc toolchain.
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) -lasound -lpthread -lm
+
+$(BRIDGE): midi_bridge.c
+    # Lightweight HTTP->MIDI bridge (replaces Python for better performance)
+	$(CC) $(CFLAGS) -o $@ midi_bridge.c
 
 %.o: %.c
     # THIS LINE MUST START WITH A TAB
@@ -23,7 +28,7 @@ $(TARGET): $(OBJS)
 
 clean:
     # THIS LINE MUST START WITH A TAB
-	rm -f $(TARGET) $(OBJS)
+	rm -f $(TARGET) $(BRIDGE) $(OBJS)
 
 deploy:
     # THIS LINE MUST START WITH A TAB
