@@ -9,19 +9,42 @@
 #include "wavetables.h"
 
 // Q1.15 helpers
-static inline int16_t qmul_q15(int16_t a, int16_t b){ 
-    int32_t t=(int32_t)a*(int32_t)b; 
-    t+=(1<<14); 
-    return (int16_t)(t>>15); 
+static inline int16_t qmul_q15(int16_t a, int16_t b){
+    int32_t t=(int32_t)a*(int32_t)b;
+    t+=(1<<14);
+    return (int16_t)(t>>15);
 }
-static inline int16_t sat16(int32_t x){ 
-    if(x>32767) return 32767; 
-    if(x<-32768) return -32768; 
-    return (int16_t)x; 
+static inline int16_t sat16(int32_t x){
+    if(x>32767) return 32767;
+    if(x<-32768) return -32768;
+    return (int16_t)x;
 }
-static inline int16_t lut8_to_q15(uint8_t s){ 
-    return ((int16_t)s-128)<<7; 
+static inline int16_t lut8_to_q15(uint8_t s){
+    return ((int16_t)s-128)<<7;
 }
+
+// Detune ratio lookup table (Q16.16 fixed point)
+// Maps detune parameter (0-127, center 64) to frequency multiplier
+// Formula: 2^((tune-64)/4.0/12) gives ±16 semitone range
+// Pre-calculated to avoid expensive powf() calls in audio path (no FPU on MT7688)
+static const uint32_t DETUNE_RATIO_LUT[128] = {
+    0x06598, 0x06712, 0x06892, 0x06A17, 0x06BA2, 0x06D33, 0x06ECA, 0x07066,  //   0-  7: -16.00 to -14.25 semitones
+    0x07209, 0x073B2, 0x07560, 0x07715, 0x078D1, 0x07A93, 0x07C5B, 0x07E2A,  //   8- 15: -14.00 to -12.25 semitones
+    0x08000, 0x081DD, 0x083C0, 0x085AB, 0x0879C, 0x08995, 0x08B96, 0x08D9E,  //  16- 23: -12.00 to -10.25 semitones
+    0x08FAD, 0x091C4, 0x093E3, 0x09609, 0x09838, 0x09A6F, 0x09CAE, 0x09EF5,  //  24- 31: -10.00 to -8.25 semitones
+    0x0A145, 0x0A39E, 0x0A5FF, 0x0A869, 0x0AADC, 0x0AD58, 0x0AFDE, 0x0B26D,  //  32- 39: -8.00 to -6.25 semitones
+    0x0B505, 0x0B7A7, 0x0BA53, 0x0BD09, 0x0BFC9, 0x0C293, 0x0C567, 0x0C846,  //  40- 47: -6.00 to -4.25 semitones
+    0x0CB30, 0x0CE25, 0x0D124, 0x0D42F, 0x0D745, 0x0DA67, 0x0DD94, 0x0E0CD,  //  48- 55: -4.00 to -2.25 semitones
+    0x0E412, 0x0E763, 0x0EAC1, 0x0EE2B, 0x0F1A2, 0x0F525, 0x0F8B6, 0x0FC54,  //  56- 63: -2.00 to -0.25 semitones
+    0x10000, 0x103B9, 0x10780, 0x10B56, 0x10F39, 0x1132B, 0x1172C, 0x11B3B,  //  64- 71: 0.00 to +1.75 semitones (64=unity)
+    0x11F5A, 0x12388, 0x127C5, 0x12C13, 0x13070, 0x134DD, 0x1395C, 0x13DEA,  //  72- 79: +2.00 to +3.75 semitones
+    0x1428A, 0x1473B, 0x14BFE, 0x150D2, 0x155B8, 0x15AB0, 0x15FBB, 0x164D9,  //  80- 87: +4.00 to +5.75 semitones
+    0x16A0A, 0x16F4E, 0x174A6, 0x17A11, 0x17F91, 0x18525, 0x18ACE, 0x1908C,  //  88- 95: +6.00 to +7.75 semitones
+    0x19660, 0x19C49, 0x1A248, 0x1A85E, 0x1AE8A, 0x1B4CD, 0x1BB28, 0x1C19A,  //  96-103: +8.00 to +9.75 semitones
+    0x1C824, 0x1CEC6, 0x1D582, 0x1DC56, 0x1E343, 0x1EA4B, 0x1F16D, 0x1F8A9,  // 104-111: +10.00 to +11.75 semitones
+    0x20000, 0x20772, 0x20F01, 0x216AB, 0x21E72, 0x22656, 0x22E57, 0x23676,  // 112-119: +12.00 to +13.75 semitones
+    0x23EB3, 0x2470F, 0x24F8A, 0x25825, 0x260E0, 0x269BB, 0x272B7, 0x27BD5   // 120-127: +14.00 to +15.75 semitones
+};
 
 // Wave types - 16 matching original Rockit manual
 typedef enum {
@@ -489,12 +512,14 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // Check if this voice has detune enabled by comparing inc_target to inc1
     if(v->inc_target == v->inc1) {
         // inc_target == inc1 means normal mode (not sub-osc)
-        // Apply detune as frequency multiplier
+        // Apply detune as frequency multiplier using FIXED-POINT lookup table
+        // This avoids expensive powf() calls (no FPU on MT7688, emulated in software)
         if(tune != 64) {
-            // tune: 0-127, center 64, maps to ±16 semitones
-            float semitone_offset = (tune - 64) / 4.0f;  // -16 to +16 semitones
-            float detune_ratio = powf(2.0f, semitone_offset / 12.0f);
-            v->inc2 = (uint32_t)((double)v->inc2 * detune_ratio);
+            // Fast fixed-point multiply using lookup table (Q16.16 format)
+            // DETUNE_RATIO_LUT maps tune value (0-127) to frequency multiplier
+            // Uses 64-bit intermediate to prevent overflow, then shifts for Q16.16
+            uint32_t ratio = DETUNE_RATIO_LUT[tune & 0x7F];  // Clamp to valid range
+            v->inc2 = (uint32_t)(((uint64_t)v->inc2 * ratio) >> 16);
         }
     }
     // else: sub-osc mode (inc_target != inc1), detune is ignored
