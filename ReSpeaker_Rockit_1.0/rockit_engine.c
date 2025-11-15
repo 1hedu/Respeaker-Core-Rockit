@@ -400,17 +400,16 @@ static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     // OSC1: Base tuning (no detune offset)
     v->inc1 = calc_phase_inc(note, 0, sr);
 
-    // OSC2: Sub-osc mode OR detune
-    // Original Rockit: When sub-osc is ON, OSC2 plays one octave below (note-12) and ignores detune knob
+    // OSC2: Set base frequency for glide target
+    // Detune is applied in voice_tick() AFTER glide (matching original Rockit)
     uint8_t sub_osc_mode = params_get(P_SUBOSC);
     if(sub_osc_mode) {
-        // Sub-osc mode: OSC2 locked to one octave below (note - 12)
+        // Sub-osc mode: base frequency one octave below
         uint8_t sub_note = (note >= 12) ? (note - 12) : 0;
-        v->inc_target = calc_phase_inc(sub_note, 0, sr);  // No detune in sub-osc mode
+        v->inc_target = calc_phase_inc(sub_note, 0, sr);
     } else {
-        // Normal mode: OSC2 with detune (±16 semitones centered at 64)
-        int tune = params_get(P_TUNE);
-        v->inc_target = calc_phase_inc(note, tune, sr);
+        // Normal mode: base frequency same as OSC1 (detune applied later)
+        v->inc_target = calc_phase_inc(note, 0, sr);
     }
 
     // Glide/Portamento: If glide is OFF, jump immediately. If ON, glide from current to target.
@@ -418,7 +417,7 @@ static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     if(glide_param == 0) {
         // No glide - jump immediately to new frequency
         v->inc_cur = v->inc_target;
-        v->inc2 = v->inc_target;
+        // Note: detune will be applied in voice_tick()
     }
     // else: keep inc_cur at previous value, glide will interpolate in voice_tick
 
@@ -454,25 +453,24 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // OSC1: Always at base tuning (no detune)
     // Keep inc1 as set in voice_trigger
 
-    // OSC2: Sub-osc mode OR detune
-    // Original Rockit: When sub-osc is ON, OSC2 locked to one octave below, ignores detune
-    uint8_t sub_osc_mode = params_get(P_SUBOSC);
-    if(sub_osc_mode) {
-        // Sub-osc mode: OSC2 locked to one octave below (note - 12), ignore tune parameter
-        uint8_t sub_note = (v->note >= 12) ? (v->note - 12) : 0;
-        uint32_t sub_inc = calc_phase_inc(sub_note, 0, sr);
-        // Only update inc_target if it changed (don't break glide with per-sample updates)
-        if(v->inc_target != sub_inc) {
-            v->inc_target = sub_inc;
-        }
-    } else if(g_tuning_dirty) {
-        // Normal mode: Only recalculate when base tune parameter actually changed
-        // This preserves glide behavior and prevents numerical instability
-        v->inc_target = calc_phase_inc(v->note, tune, sr);
-    }
-    // Note: LFO vibrato is applied AFTER glide, as a frequency multiplier
+    // OSC2 Architecture (matching original Rockit):
+    // 1. Start with BASE note frequency (same as OSC1, or one octave down for sub-osc)
+    // 2. Apply glide to BASE frequency
+    // 3. Then apply detune (including LFO modulation) as frequency multiplier
 
-    // Glide (affects OSC2 only) - smooth transition between inc_cur and inc_target
+    uint8_t sub_osc_mode = params_get(P_SUBOSC);
+
+    // Determine base frequency target for glide
+    if(sub_osc_mode) {
+        // Sub-osc: one octave below base note
+        uint8_t sub_note = (v->note >= 12) ? (v->note - 12) : 0;
+        v->inc_target = calc_phase_inc(sub_note, 0, sr);
+    } else {
+        // Normal: same as OSC1 (base note, no detune yet)
+        v->inc_target = calc_phase_inc(v->note, 0, sr);
+    }
+
+    // Apply glide to base frequency
     float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
     if(glide > 0.01f){
         uint32_t glide_rate = (uint32_t)(glide * 100.0f * (float)sr / 1000.0f);
@@ -489,25 +487,19 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
             v->inc_cur -= delta;
             if(v->inc_cur < v->inc_target) v->inc_cur = v->inc_target;
         }
-        // Apply glide to OSC2
         v->inc2 = v->inc_cur;
     } else {
-        // No glide - use target directly
         v->inc2 = v->inc_target;
     }
 
-    // Apply LFO vibrato/detune modulation AFTER glide
-    // LFO modulation is applied as a frequency multiplier (in semitones)
-    // This allows vibrato to work without breaking glide interpolation
-    if(!sub_osc_mode) {
-        // Calculate vibrato as deviation from base tune (centered at 64)
-        int tune_deviation = tune - 64;  // -64 to +63 (from base tune of 64)
-        if(tune_deviation != 0) {
-            // Apply as frequency multiplier: 2^(semitones/12)
-            // tune_deviation/4.0 gives ±16 semitones range
-            float vibrato_ratio = powf(2.0f, (tune_deviation / 4.0f) / 12.0f);
-            v->inc2 = (uint32_t)((double)v->inc2 * vibrato_ratio);
-        }
+    // Now apply detune/vibrato AFTER glide (matches original Rockit architecture)
+    // This allows LFO vibrato to work without breaking glide
+    if(!sub_osc_mode && tune != 64) {
+        // Apply detune as frequency multiplier
+        // tune: 0-127, center 64, maps to ±16 semitones
+        float semitone_offset = (tune - 64) / 4.0f;  // -16 to +16 semitones
+        float detune_ratio = powf(2.0f, semitone_offset / 12.0f);
+        v->inc2 = (uint32_t)((double)v->inc2 * detune_ratio);
     }
     
     // Oscillators with anti-aliasing and TIME-VARYING MORPHING
@@ -865,7 +857,7 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
         // Filter
         case 74: params_set(P_FILTER_CUTOFF, value); break;
         case 71: params_set(P_FILTER_RESONANCE, value); break;
-        case 84: params_set(P_FILTER_MODE, value >> 5); break;       // 0-3 from 0,32,64,96
+        case 84: params_set(P_FILTER_MODE, value & 0x03); break;     // Web UI sends 0-3 directly, mask to be safe
         case 85: params_set(P_FILTER_ENV_AMT, value); break;
 
         // Oscillators
