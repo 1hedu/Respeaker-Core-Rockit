@@ -221,25 +221,30 @@ static inline uint32_t calc_phase_inc(uint8_t note, int tune, int fine, int sr) 
 static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     v->active = 1;
     v->note = note;
-    v->ph1 = 0;
-    v->ph2 = 0;
-    
-    // Calculate with current tuning
+    // Don't reset phase to avoid clicks - let it continue
+    // v->ph1 = 0;
+    // v->ph2 = 0;
+
+    // OSC1: Base tuning (no tune/fine offset)
+    v->inc1 = calc_phase_inc(note, 0, 0, sr);
+
+    // OSC2: With tune/fine offset
     int tune = params_get(P_TUNE);
     int fine = params_get(P_FINE);
-    v->inc_target = calc_phase_inc(note, tune, fine, sr);
-    v->inc_cur = v->inc_target;
-    v->inc1 = v->inc_target;
-    v->inc2 = v->inc_target;
-    
+    v->inc2 = calc_phase_inc(note, tune, fine, sr);
+
+    // Set target for glide
+    v->inc_target = v->inc2;
+    v->inc_cur = v->inc2;
+
     v->env = ENV_ATTACK;
     v->env_q = 0;
     v->t = 0;
-    
+
     float a_ms = ((float)params_get(P_ENV_ATTACK)/127.0f)*2000.0f;
     float d_ms = ((float)params_get(P_ENV_DECAY)/127.0f)*2000.0f;
     float r_ms = ((float)params_get(P_ENV_RELEASE)/127.0f)*2000.0f;
-    
+
     v->atk = ms_to_samples(a_ms, sr);
     v->dec = ms_to_samples(d_ms, sr);
     v->rel = ms_to_samples(r_ms, sr);
@@ -261,29 +266,36 @@ static void update_voice_tuning_if_changed(voice_state_t *v, int tune, int fine,
 
 static int16_t voice_tick(voice_state_t *v, int sr, int tune, int fine){
     if(!v->active) return 0;
-    
-    // Update tuning only if params changed
-    update_voice_tuning_if_changed(v, tune, fine, sr);
-    
-    // Glide
-    float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
-    uint32_t glide_rate = (uint32_t)(glide * 100.0f * (float)sr / 1000.0f);
-    if(glide_rate < 1) glide_rate = 1;
-    
-    if(v->inc_cur < v->inc_target){
-        uint32_t delta = (v->inc_target - v->inc_cur) / glide_rate;
-        if(delta < 1) delta = 1;
-        v->inc_cur += delta;
-        if(v->inc_cur > v->inc_target) v->inc_cur = v->inc_target;
-    } else if(v->inc_cur > v->inc_target){
-        uint32_t delta = (v->inc_cur - v->inc_target) / glide_rate;
-        if(delta < 1) delta = 1;
-        v->inc_cur -= delta;
-        if(v->inc_cur < v->inc_target) v->inc_cur = v->inc_target;
+
+    // OSC1: Always at base tuning (live update if note changes, but no tune/fine)
+    // Keep inc1 as set in voice_trigger
+
+    // OSC2: Update tuning live if tune/fine params changed
+    if(g_tuning_dirty){
+        v->inc2 = calc_phase_inc(v->note, tune, fine, sr);
+        v->inc_target = v->inc2;
     }
-    
-    v->inc1 = v->inc_cur;
-    v->inc2 = v->inc_cur;
+
+    // Glide (affects OSC2 only)
+    float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
+    if(glide > 0.01f){
+        uint32_t glide_rate = (uint32_t)(glide * 100.0f * (float)sr / 1000.0f);
+        if(glide_rate < 1) glide_rate = 1;
+
+        if(v->inc_cur < v->inc_target){
+            uint32_t delta = (v->inc_target - v->inc_cur) / glide_rate;
+            if(delta < 1) delta = 1;
+            v->inc_cur += delta;
+            if(v->inc_cur > v->inc_target) v->inc_cur = v->inc_target;
+        } else if(v->inc_cur > v->inc_target){
+            uint32_t delta = (v->inc_cur - v->inc_target) / glide_rate;
+            if(delta < 1) delta = 1;
+            v->inc_cur -= delta;
+            if(v->inc_cur < v->inc_target) v->inc_cur = v->inc_target;
+        }
+        // Apply glide to OSC2
+        v->inc2 = v->inc_cur;
+    }
     
     // Oscillators with anti-aliasing
     wave_t w1 = (wave_t)params_get(P_OSC1_WAVE);
@@ -376,7 +388,7 @@ void rockit_engine_init(rockit_engine_t *e){
 
 void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int sr){
     g_sr = sr;
-    
+
     // Check if tuning params changed (ONCE per render call, not per sample!)
     int16_t tune = params_get(P_TUNE);
     int16_t fine = params_get(P_FINE);
@@ -385,26 +397,50 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         g_last_tune = tune;
         g_last_fine = fine;
     }
-    
+
     // LFO1 parameters
     float lfo1_hz = 0.01f + ((float)params_get(P_LFO1_RATE)/127.0f)*20.0f;
     L1.inc = hz_to_inc(lfo1_hz, sr);
     L1.shape = params_get(P_LFO1_SHAPE) & 0x0F;
     L1.depth_q = ((int16_t)params_get(P_LFO1_DEPTH)*32767)/127;
-    
+
     // LFO2 parameters
     float lfo2_hz = 0.01f + ((float)params_get(P_LFO2_RATE)/127.0f)*20.0f;
     L2.inc = hz_to_inc(lfo2_hz, sr);
     L2.shape = params_get(P_LFO2_SHAPE) & 0x0F;
     L2.depth_q = ((int16_t)params_get(P_LFO2_DEPTH)*32767)/127;
-    
-    // Filter parameters
-    float cutoff_hz = 50.0f + (params_get(P_FILTER_CUTOFF)/127.0f) * 12000.0f;
+
+    // Filter parameters - Exponential scaling like original Rockit
+    // Maps 0-127 to 20Hz-20kHz with exponential curve for musical response
+    int cutoff_param = params_get(P_FILTER_CUTOFF);
+    float cutoff_norm = cutoff_param / 127.0f;  // 0.0 to 1.0
+    float cutoff_hz = 20.0f * powf(1000.0f, cutoff_norm);  // 20Hz to 20kHz exponential
+
     float q = 0.5f + (params_get(P_FILTER_RESONANCE)/127.0f) * 19.5f;
     svf_set_cutoff(&flt, cutoff_hz);
     svf_set_q(&flt, q);
-    
+
     int16_t vol_q = ((int16_t)params_get(P_MASTER_VOL)*32767)/127;
+
+    // LIVE ENVELOPE PARAMETER UPDATES - Read envelope params and update all active voices
+    // This allows real-time parameter changes while notes are held (like real synths)
+    float a_ms = ((float)params_get(P_ENV_ATTACK)/127.0f)*2000.0f;
+    float d_ms = ((float)params_get(P_ENV_DECAY)/127.0f)*2000.0f;
+    float r_ms = ((float)params_get(P_ENV_RELEASE)/127.0f)*2000.0f;
+    uint32_t atk_samples = ms_to_samples(a_ms, sr);
+    uint32_t dec_samples = ms_to_samples(d_ms, sr);
+    uint32_t rel_samples = ms_to_samples(r_ms, sr);
+    int16_t sus_q = ((int16_t)params_get(P_ENV_SUSTAIN)*32767)/127;
+
+    // Update envelope parameters for all active voices
+    for(int v=0; v<3; v++){
+        if(V[v].active){
+            V[v].atk = atk_samples;
+            V[v].dec = dec_samples;
+            V[v].rel = rel_samples;
+            V[v].sus_q = sus_q;
+        }
+    }
     
     for(size_t i=0; i<frames; i++){
         // Tick LFOs (routing TODO)
