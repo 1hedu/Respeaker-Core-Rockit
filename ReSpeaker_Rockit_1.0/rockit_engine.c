@@ -592,7 +592,11 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
     svf_set_cutoff(&flt, cutoff_hz);
     svf_set_q(&flt, q);
 
-    int16_t vol_q = ((int16_t)params_get(P_MASTER_VOL)*32767)/127;
+    // Master Volume - Exponential curve for perceptual uniformity (like pro audio gear)
+    // Linear volume sounds unnatural - use squared curve for better control at low volumes
+    // 0 → silence, 64 → -12dB, 127 → 0dB (full)
+    float vol_norm = params_get(P_MASTER_VOL) / 127.0f;
+    int16_t vol_q = (int16_t)(32767.0f * vol_norm * vol_norm);  // Squared for perceptual linearity
 
     // LIVE ENVELOPE PARAMETER UPDATES - Read envelope params and update all active voices
     // This allows real-time parameter changes while notes are held (like real synths)
@@ -688,7 +692,9 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         svf_set_cutoff(&flt, cutoff_hz_mod);
         svf_set_q(&flt, q_mod);
 
-        int16_t vol_q_mod = ((int16_t)modulated_vol * 32767) / 127;
+        // Apply exponential curve to modulated volume (LFO tremolo affects volume curve)
+        float vol_norm_mod = modulated_vol / 127.0f;
+        int16_t vol_q_mod = (int16_t)(32767.0f * vol_norm_mod * vol_norm_mod);
 
         // Tick LFO phase accumulators
         L1.ph += L1.inc;
