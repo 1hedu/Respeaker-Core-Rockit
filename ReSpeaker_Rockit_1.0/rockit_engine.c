@@ -1,9 +1,11 @@
 #include "rockit_engine.h"
 #include "paraphonic.h"
 #include "filter_svf.h"
+#include "patch_storage.h"
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <stdio.h>
 #include "wavetables.h"
 
 // Q1.15 helpers
@@ -815,11 +817,11 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
         case 88: params_set(P_LFO1_SHAPE, value >> 3); break;        // 0-15 from 0-127
         case 89: params_set(P_LFO1_DEST, value >> 4); break;         // 0-7 from 0-127
 
-        // LFO 2 (if needed for extended controls)
-        case 91: params_set(P_LFO2_RATE, value); break;
-        case 92: params_set(P_LFO2_DEPTH, value); break;
-        case 93: params_set(P_LFO2_SHAPE, value >> 3); break;        // 0-15 from 0-127
-        case 94: params_set(P_LFO2_DEST, value >> 4); break;         // 0-7 from 0-127
+        // LFO 2 (extended controls - no UI yet, placeholders for future)
+        case 95: params_set(P_LFO2_RATE, value); break;
+        case 96: params_set(P_LFO2_DEPTH, value); break;
+        case 97: params_set(P_LFO2_SHAPE, value >> 3); break;        // 0-15 from 0-127
+        case 98: params_set(P_LFO2_DEST, value >> 4); break;         // 0-7 from 0-127
 
         // Master
         case 7:  params_set(P_MASTER_VOL, value); break;
@@ -846,6 +848,22 @@ void rockit_handle_cc(uint8_t cc, uint8_t value){
         // Global
         case 90: params_set(P_GLIDE_TIME, value); break;
         case 91: params_set(P_DRONE_MODE, value >= 64 ? 1 : 0); break;  // Toggle: 0-63=off, 64-127=on
+
+        // Patch Save/Recall (using simple text file storage instead of EEPROM)
+        case 92: {  // Save Patch: value 0-127 maps to patch 0-15
+            uint8_t patch_num = value >> 3;  // Divide by 8: 0-7 = patch 0, 8-15 = patch 1, etc.
+            if(patch_save(patch_num) == 0) {
+                fprintf(stderr, "✓ Saved to patch %d (CC92 value=%d)\n", patch_num, value);
+            }
+            break;
+        }
+        case 93: {  // Recall Patch: value 0-127 maps to patch 0-15
+            uint8_t patch_num = value >> 3;
+            if(patch_recall(patch_num) == 0) {
+                fprintf(stderr, "✓ Recalled patch %d (CC93 value=%d)\n", patch_num, value);
+            }
+            break;
+        }
 
         default: break;
     }

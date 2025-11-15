@@ -7,8 +7,8 @@ STAGING = $(HOME)/respeaker-staging
 CFLAGS = -std=gnu99 -Os -march=mips32r2 -mtune=24kec -mdsp -Wall -I. -I$(STAGING)/usr/include
 LDFLAGS = -Wl,--no-as-needed -L$(STAGING)/usr/lib -Wl,-rpath-link,$(STAGING)/usr/lib
 
-# SRCS: midi_alsa_seq.c removed, socket_midi_raw.c added
-SRCS = main.c rockit_engine.c params.c wavetables.c filter_svf.c socket_midi_raw.c
+# SRCS: midi_alsa_seq.c removed, socket_midi_raw.c added, patch_storage.c added
+SRCS = main.c rockit_engine.c params.c wavetables.c filter_svf.c socket_midi_raw.c patch_storage.c
 OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)

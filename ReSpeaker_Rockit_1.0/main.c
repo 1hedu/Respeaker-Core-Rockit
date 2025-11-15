@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include "rockit_engine.h"
 #include "socket_midi_raw.h"
+#include "patch_storage.h"
 
 static volatile int run=1; 
 static snd_pcm_t* h=NULL;
@@ -191,9 +192,12 @@ int main(int argc,char**argv){
     int midi_started = 0; // Flag to track if the MIDI system has started
     
     signal(SIGINT, onint);
-    
+
     rockit_engine_t e;
     rockit_engine_init(&e);
+
+    // Initialize patch storage system (creates /tmp/rockit_patches directory)
+    patch_storage_init();
 
     // --- ARGUMENT PARSING LOOP ---
     for(int ai=1; ai<argc; ++ai){

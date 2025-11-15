@@ -230,7 +230,38 @@
             </div>
             <button class="panic" id="panic">🚨 PANIC (All Notes Off)</button>
         </div>
-        
+
+        <div class="panel">
+            <div class="panel-title">Patch Management (16 Slots)</div>
+            <p style="font-size: 0.75em; color: #888; margin-bottom: 8px;">Patches saved to /tmp/rockit_patches/ as text files</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                <div style="text-align: center;">
+                    <button id="save-patch" style="width: 100%; background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">💾 Save</button>
+                    <button id="load-patch" style="width: 100%; background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); margin-top: 4px;">📂 Load</button>
+                    <div style="margin-top: 4px;">
+                        <select id="patch-selector" style="width: 100%; padding: 4px; background: rgba(0,0,0,0.3); color: #00d4ff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px;">
+                            <option value="0">Patch 00</option>
+                            <option value="1">Patch 01</option>
+                            <option value="2">Patch 02</option>
+                            <option value="3">Patch 03</option>
+                            <option value="4">Patch 04</option>
+                            <option value="5">Patch 05</option>
+                            <option value="6">Patch 06</option>
+                            <option value="7">Patch 07</option>
+                            <option value="8">Patch 08</option>
+                            <option value="9">Patch 09</option>
+                            <option value="10">Patch 10</option>
+                            <option value="11">Patch 11</option>
+                            <option value="12">Patch 12</option>
+                            <option value="13">Patch 13</option>
+                            <option value="14">Patch 14</option>
+                            <option value="15">Patch 15</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="status" id="status">Connecting...</div>
     </div>
 
@@ -316,7 +347,25 @@
             var keys = document.querySelectorAll('.key.active');
             for (var i = 0; i < keys.length; i++) { keys[i].classList.remove('active'); }
         });
-        
+
+        // Patch Save/Load
+        document.getElementById('save-patch').addEventListener('click', function() {
+            var patchNum = parseInt(document.getElementById('patch-selector').value);
+            // CC 92: Save Patch (value 0-127 maps to patch 0-15)
+            // patchNum * 8 gives us: 0→0, 1→8, 2→16, ..., 15→120
+            var ccValue = patchNum * 8;
+            sendCC(92, ccValue);
+            alert('💾 Saved to Patch ' + patchNum.toString().padStart(2, '0'));
+        });
+
+        document.getElementById('load-patch').addEventListener('click', function() {
+            var patchNum = parseInt(document.getElementById('patch-selector').value);
+            // CC 93: Recall Patch (value 0-127 maps to patch 0-15)
+            var ccValue = patchNum * 8;
+            sendCC(93, ccValue);
+            alert('📂 Loaded Patch ' + patchNum.toString().padStart(2, '0'));
+        });
+
         // Build keyboard (C2 to C6 = 4 octaves + 1 note = 49 keys)
         var keyboard = document.getElementById('keyboard');
         var notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
