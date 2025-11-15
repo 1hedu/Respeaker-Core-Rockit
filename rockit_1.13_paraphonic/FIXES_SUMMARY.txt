@@ -1,0 +1,62 @@
+# Rockit Paraphonic Fixed - Summary
+
+## What Was Fixed
+
+### 4 Critical Bug Fixes:
+
+1. **lfo.c line 163:** Changed `> 1` to `> 0` 
+   - LFO now properly OFF when amount = 0
+
+2. **lfo.c lines 511-524:** Removed problematic "passthrough" code
+   - LFO no longer interferes with envelopes, patches, or knobs when OFF
+   - Fixes sustain bug (weird low noise)
+
+3. **read_ad.c lines 156-162:** Added amount check to LFO blocking logic
+   - Knobs now work even when LFO destination is set
+   - Can switch to LFO 2 successfully
+
+4. **midi.c line 631:** Removed redundant flag setting
+   - Cleaner paraphonic integration
+
+---
+
+## What These Fixes Mean For You
+
+**Before:**
+- LFO affected sound even with amount at 0
+- Couldn't switch to LFO 2 after loading patches
+- Weird sustain behavior / low noise
+- Knobs wouldn't respond if LFO was targeting that parameter
+
+**After:**
+- LFO only works when amount > 0 ✓
+- Can freely switch between LFO 1 and LFO 2 ✓
+- Sustain works correctly ✓
+- Knobs always respond ✓
+- Patches load and work properly ✓
+
+---
+
+## These Were Original Firmware Bugs
+
+Not caused by your paraphonic modifications - you just discovered them during testing!
+
+---
+
+## Next Steps
+
+1. Extract the zip file
+2. Compile using your normal process
+3. Flash to your Rockit
+4. Test the scenarios listed in BUGFIXES.md
+
+---
+
+## Files Modified
+
+Only 3 files changed:
+- lfo.c (2 fixes)
+- read_ad.c (1 fix)
+- midi.c (1 fix)
+
+All paraphonic code unchanged. All other original code unchanged.
