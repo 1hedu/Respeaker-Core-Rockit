@@ -46,9 +46,9 @@ const param_spec_t PARAM_SPECS[P_COUNT] = {
   [P_ARP_GATE]      = {"arp_gate",    0, 127, 100}, // Gate time percentage
 };
 
-void params_init(void){ 
-  for(int i=0; i<P_COUNT; i++) 
-    V[i] = PARAM_SPECS[i].def; 
+void params_init(void){
+  for(int i=0; i<P_COUNT; i++)
+    V[i] = PARAM_SPECS[i].def;
 }
 
 void params_set(param_id_t id, int16_t val){
@@ -58,7 +58,7 @@ void params_set(param_id_t id, int16_t val){
   V[id] = val;
 }
 
-int16_t params_get(param_id_t id){ 
-  if(id < 0 || id >= P_COUNT) return 0; 
-  return V[id]; 
+int16_t params_get(param_id_t id){
+  if(id < 0 || id >= P_COUNT) return 0;
+  return V[id];
 }
