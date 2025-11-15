@@ -358,13 +358,18 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int fine){
 }
 
 void rockit_engine_init(rockit_engine_t *e){
+    (void)e;
+
+    // CRITICAL: Initialize all parameters to their default values
+    params_init();
+
     memset(V, 0, sizeof(V));
     memset(&L1, 0, sizeof(L1));
     memset(&L2, 0, sizeof(L2));
-    
+
     // Initialize filter with default sample rate
     svf_init(&flt, 48000);
-    
+
     // Initialize paraphonic system
     paraphonic_init();
 }
@@ -468,38 +473,49 @@ void rockit_note_off(uint8_t note){
 }
 
 void rockit_handle_cc(uint8_t cc, uint8_t value){
-    // MIDI CC mapping per Rockit manual
-    // CC 1: Mod Wheel → LFO1 Depth
-    if(cc == 1){
-        params_set(P_LFO1_DEPTH, value);
-        return;
-    }
-    
-    // CC 2+: Parameter index (CC - 2)
-    if(cc >= 2 && cc <= 34){
-        int param_idx = cc - 2;
-        
-        switch(param_idx){
-            case 0:  params_set(P_LFO1_SHAPE, value>>3); break;      // CC 2
-            case 3:  params_set(P_OSC1_WAVE, value>>3); break;       // CC 5
-            case 5:  params_set(P_FILTER_RESONANCE, value); break;   // CC 7
-            case 7:  params_set(P_TUNE, value-64); break;            // CC 9 (centered)
-            case 9:  params_set(P_OSC_MIX, value); break;            // CC 11
-            case 10: params_set(P_FILTER_CUTOFF, value); break;      // CC 12
-            case 13: params_set(P_OSC2_WAVE, value>>3); break;       // CC 15
-            case 14: params_set(P_LFO1_RATE, value); break;          // CC 16
-            case 15: params_set(P_LFO1_DEPTH, value); break;         // CC 17
-            case 16: params_set(P_LFO1_RATE, value); break;          // CC 18
-            case 17: params_set(P_LFO2_RATE, value); break;          // CC 19
-            case 18: params_set(P_LFO1_DEPTH, value); break;         // CC 20
-            case 19: params_set(P_LFO2_DEPTH, value); break;         // CC 21
-            case 23: params_set(P_MASTER_VOL, value); break;         // CC 25
-            case 24: params_set(P_LFO1_DEST, value>>4); break;       // CC 26
-            case 25: params_set(P_LFO2_DEST, value>>4); break;       // CC 27
-            case 26: params_set(P_FILTER_MODE, value>>5); break;     // CC 28
-            case 27: params_set(P_LFO1_SHAPE, value>>3); break;      // CC 29
-            case 28: params_set(P_LFO2_SHAPE, value>>3); break;      // CC 30
-            case 31: params_set(P_GLIDE_TIME, value); break;         // CC 33
-        }
+    // Pass to paraphonic handler first
+    paraphonic_handle_cc(cc, value);
+
+    // Standard MIDI CC mapping (compatible with web UI and v0.9)
+    switch(cc){
+        // LFO 1 (primary)
+        case 1:  params_set(P_LFO1_DEPTH, value); break;             // Mod wheel
+        case 87: params_set(P_LFO1_RATE, value); break;
+        case 88: params_set(P_LFO1_SHAPE, value >> 3); break;        // 0-15 from 0-127
+        case 89: params_set(P_LFO1_DEST, value >> 4); break;         // 0-7 from 0-127
+
+        // LFO 2 (if needed for extended controls)
+        case 91: params_set(P_LFO2_RATE, value); break;
+        case 92: params_set(P_LFO2_DEPTH, value); break;
+        case 93: params_set(P_LFO2_SHAPE, value >> 3); break;        // 0-15 from 0-127
+        case 94: params_set(P_LFO2_DEST, value >> 4); break;         // 0-7 from 0-127
+
+        // Master
+        case 7:  params_set(P_MASTER_VOL, value); break;
+
+        // Filter
+        case 74: params_set(P_FILTER_CUTOFF, value); break;
+        case 71: params_set(P_FILTER_RESONANCE, value); break;
+        case 84: params_set(P_FILTER_MODE, value >> 5); break;       // 0-3 from 0,32,64,96
+        case 85: params_set(P_FILTER_ENV_AMT, value); break;
+
+        // Oscillators
+        case 72: params_set(P_OSC_MIX, value); break;
+        case 76: params_set(P_SUBOSC, (value>=64)?1:0); break;
+        case 80: params_set(P_OSC1_WAVE, value >> 3); break;         // 0-15 from 0-127 (16 waveforms)
+        case 81: params_set(P_OSC2_WAVE, value >> 3); break;         // 0-15 from 0-127
+        case 82: params_set(P_TUNE, value); break;
+        case 83: params_set(P_FINE, value); break;
+
+        // Envelope (Amplitude)
+        case 73: params_set(P_ENV_ATTACK, value); break;
+        case 75: params_set(P_ENV_DECAY, value); break;
+        case 86: params_set(P_ENV_SUSTAIN, value); break;
+        case 70: params_set(P_ENV_RELEASE, value); break;
+
+        // Global
+        case 90: params_set(P_GLIDE_TIME, value); break;
+
+        default: break;
     }
 }
