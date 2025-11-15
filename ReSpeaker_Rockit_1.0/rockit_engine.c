@@ -437,7 +437,7 @@ static void voice_release(voice_state_t *v){
     v->t = 0;
 }
 
-static int16_t voice_tick(voice_state_t *v, int sr, int tune){
+static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     if(!v->active) return 0;
 
     // OSC1: Always at base tuning (no detune)
@@ -480,7 +480,7 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune){
     int16_t s1 = wavetable_sample(v->ph1, w1, v->note, &v->morph1, v->env);
     int16_t s2 = wavetable_sample(v->ph2, w2, v->note, &v->morph2, v->env);
 
-    int mix = params_get(P_OSC_MIX);
+    // Use modulated mix (can be modulated by LFO2)
     int32_t osc = ((127-mix)*s1 + mix*s2) / 127;
 
     v->ph1 += v->inc1;
@@ -615,7 +615,82 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
     }
     
     for(size_t i=0; i<frames; i++){
-        // Tick LFOs (routing TODO)
+        // ==== LFO MODULATION SYSTEM (matches original Rockit routing) ====
+
+        // Generate LFO waveforms (0-255 unsigned)
+        uint8_t lfo1_wave = (uint8_t)((lfo_wave(L1.ph, L1.shape) + 32768) >> 8);
+        uint8_t lfo2_wave = (uint8_t)((lfo_wave(L2.ph, L2.shape) + 32768) >> 8);
+
+        // LFO 1 Modulation Routing
+        int lfo1_dest = params_get(P_LFO1_DEST);
+        int lfo1_depth = params_get(P_LFO1_DEPTH);
+        int16_t lfo1_mod = 0;  // Modulation amount to add to parameter
+        if(lfo1_depth > 0) {
+            int16_t mod = (int16_t)lfo1_wave - 128;  // Center to bipolar (-128 to +127)
+            lfo1_mod = (mod * lfo1_depth) >> 7;      // Scale by depth, divide by 128
+        }
+
+        // LFO 2 Modulation Routing
+        int lfo2_dest = params_get(P_LFO2_DEST);
+        int lfo2_depth = params_get(P_LFO2_DEPTH);
+        int16_t lfo2_mod = 0;
+        if(lfo2_depth > 0) {
+            int16_t mod = (int16_t)lfo2_wave - 128;
+            lfo2_mod = (mod * lfo2_depth) >> 7;
+        }
+
+        // Apply LFO modulation to destinations (matching original Rockit)
+        // LFO1 destinations: 0:Amp, 1:Filter, 2:FilterQ, 3:FilterEnv, 4:Pitch, 5:Detune
+        // LFO2 destinations: 0:Mix, 1:Filter, 2:FilterQ, 3:LFO1Rate, 4:LFO1Depth, 5:FilterAtk
+
+        int16_t modulated_vol = params_get(P_MASTER_VOL);
+        int16_t modulated_cutoff = params_get(P_FILTER_CUTOFF);
+        int16_t modulated_q = params_get(P_FILTER_RESONANCE);
+        int16_t modulated_mix = params_get(P_OSC_MIX);
+        int16_t modulated_tune = tune;  // Already loaded from outer scope
+
+        // LFO 1 routing
+        switch(lfo1_dest) {
+            case 0: modulated_vol += lfo1_mod; break;       // Amplitude
+            case 1: modulated_cutoff += lfo1_mod; break;    // Filter Cutoff
+            case 2: modulated_q += lfo1_mod; break;         // Filter Q
+            case 3: break;  // Filter Env Amount - not implemented yet
+            case 4: break;  // Pitch Shift - global pitch bend, complex
+            case 5: modulated_tune += lfo1_mod; break;      // Detune
+        }
+
+        // LFO 2 routing
+        switch(lfo2_dest) {
+            case 0: modulated_mix += lfo2_mod; break;       // OSC Mix
+            case 1: modulated_cutoff += lfo2_mod; break;    // Filter Cutoff
+            case 2: modulated_q += lfo2_mod; break;         // Filter Q
+            case 3: break;  // LFO1 Rate - meta-modulation, complex
+            case 4: break;  // LFO1 Depth - meta-modulation, complex
+            case 5: break;  // Filter Attack - not implemented yet
+        }
+
+        // Clamp modulated values to valid ranges
+        if(modulated_vol < 0) modulated_vol = 0;
+        if(modulated_vol > 127) modulated_vol = 127;
+        if(modulated_cutoff < 0) modulated_cutoff = 0;
+        if(modulated_cutoff > 127) modulated_cutoff = 127;
+        if(modulated_q < 0) modulated_q = 0;
+        if(modulated_q > 127) modulated_q = 127;
+        if(modulated_mix < 0) modulated_mix = 0;
+        if(modulated_mix > 127) modulated_mix = 127;
+        if(modulated_tune < 0) modulated_tune = 0;
+        if(modulated_tune > 127) modulated_tune = 127;
+
+        // Update filter with modulated parameters
+        float cutoff_norm = modulated_cutoff / 127.0f;
+        float cutoff_hz_mod = 20.0f * powf(1000.0f, cutoff_norm);
+        float q_mod = 0.5f + (modulated_q/127.0f) * 19.5f;
+        svf_set_cutoff(&flt, cutoff_hz_mod);
+        svf_set_q(&flt, q_mod);
+
+        int16_t vol_q_mod = ((int16_t)modulated_vol * 32767) / 127;
+
+        // Tick LFO phase accumulators
         L1.ph += L1.inc;
         L2.ph += L2.inc;
         
@@ -624,23 +699,24 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         int active_voices = 0;
         for(int v=0; v<3; v++){
             if(V[v].active){
-                mix += voice_tick(&V[v], sr, tune);
+                // Pass modulated tune and mix to voice_tick
+                mix += voice_tick(&V[v], sr, modulated_tune, modulated_mix);
                 active_voices++;
             }
         }
-        
+
         // Scale by voice count to prevent clipping
         if(active_voices > 1){
             mix = mix / active_voices;
         }
-        
-        // Convert to float for filter
+
+        // Convert to float for filter (filter already updated with LFO modulation)
         float sf = (float)sat16(mix) / 32768.0f;
         sf = svf_process_lp(&flt, sf);
         int16_t filtered = (int16_t)(sf * 32768.0f);
-        
-        // Apply master volume
-        int16_t v16 = qmul_q15(filtered, vol_q);
+
+        // Apply modulated master volume
+        int16_t v16 = qmul_q15(filtered, vol_q_mod);
         
         // STEREO OUTPUT
         out[2*i+0] = v16; 
