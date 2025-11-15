@@ -445,13 +445,12 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // OSC1: Always at base tuning (no detune)
     // Keep inc1 as set in voice_trigger
 
-    // OSC2: Update detune live if TUNE param changed
-    if(g_tuning_dirty){
-        v->inc2 = calc_phase_inc(v->note, tune, sr);
-        v->inc_target = v->inc2;
-    }
+    // OSC2: Always recalculate with current tune (may be LFO-modulated)
+    // This allows LFO detune/vibrato to work properly
+    v->inc2 = calc_phase_inc(v->note, tune, sr);
+    v->inc_target = v->inc2;
 
-    // Glide (affects OSC2 only)
+    // Glide (affects OSC2 only) - smooth transition between inc_cur and inc_target
     float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
     if(glide > 0.01f){
         uint32_t glide_rate = (uint32_t)(glide * 100.0f * (float)sr / 1000.0f);
