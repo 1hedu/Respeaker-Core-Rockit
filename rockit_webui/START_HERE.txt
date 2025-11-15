@@ -1,0 +1,90 @@
+🎹 ROCKIT SYNTH WEB UI - QUICK START
+====================================
+
+You now have THREE versions of the web UI:
+
+1. ⭐ LIGHTTPD VERSION (BEST FOR RESPEAKER!)
+   - Files: rockit.html + midi_bridge.py
+   - Uses existing lighttpd web server
+   - Smallest: 13KB, fastest, most professional
+
+2. MINIMAL VERSION (NO WEB SERVER NEEDED)
+   - File: synth_webui_minimal.py
+   - Zero dependencies, single file
+   - 17KB total
+
+3. FLASK VERSION (FOR EXTRA STORAGE)
+   - Files: synth_webui.py + templates/
+   - Requires Flask installation
+   - Best for customization
+
+📖 READ FIRST: WHICH_VERSION.md
+   - Explains which version to use
+   - Comparison table
+   - Installation instructions
+
+🚀 QUICKEST START (Lighttpd Version - RECOMMENDED):
+   
+   1. Check if you have lighttpd:
+      which lighttpd
+   
+   2. Copy to ReSpeaker:
+      scp rockit.html root@<ip>:/www/
+      scp midi_bridge.py root@<ip>:/root/
+      scp start_rockit_lighttpd.sh root@<ip>:/root/
+   
+   3. On ReSpeaker:
+      chmod +x start_rockit_lighttpd.sh
+      ./start_rockit_lighttpd.sh
+   
+   4. Open browser:
+      http://<respeaker-ip>/rockit.html
+
+🔧 IF NO LIGHTTPD (Minimal Version):
+   
+   1. Copy to ReSpeaker:
+      scp synth_webui_minimal.py root@<ip>:/root/
+      scp start_rockit_minimal.sh root@<ip>:/root/
+   
+   2. On ReSpeaker:
+      chmod +x start_rockit_minimal.sh
+      ./start_rockit_minimal.sh
+   
+   3. Open browser:
+      http://<respeaker-ip>:8080
+
+📚 DOCUMENTATION:
+   - WHICH_VERSION.md ........... Choose your version
+   - README_LIGHTTPD.md ......... Lighttpd version docs
+   - README_MINIMAL.md .......... Minimal version docs
+   - ROCKIT_WEBUI_README.md ..... Flask version docs
+
+🎛️ FEATURES (All Versions):
+   ✅ Visual keyboard (2 octaves)
+   ✅ Filter controls (cutoff, resonance)
+   ✅ Envelope (attack, decay, release)
+   ✅ Oscillator mix + sub-osc
+   ✅ LFO depth
+   ✅ Voice modes (mono/para, 2/3-voice)
+   ✅ Master volume
+   ✅ Panic button
+   ✅ Mobile/touch support
+
+📊 SIZE COMPARISON:
+   Lighttpd: 13KB  ⭐ Smallest!
+   Minimal:  17KB
+   Flask:   100KB+
+
+📡 ARCHITECTURE:
+
+Lighttpd version:
+Browser → lighttpd → rockit.html
+                   ↓ AJAX
+        midi_bridge.py → TCP MIDI → Rockit Synth
+
+Minimal version:
+Browser → synth_webui_minimal.py → TCP MIDI → Rockit Synth
+
+Both send raw 3-byte MIDI over TCP!
+
+Happy synth-ing! 🎶

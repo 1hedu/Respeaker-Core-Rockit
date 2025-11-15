@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rockit Synth</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+        }
+        
+        .synth-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .panel-title {
+            font-size: 1.3em;
+            color: #00d4ff;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .control-label {
+            font-size: 0.9em;
+            color: #b0b0b0;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .control-value {
+            color: #00d4ff;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+        
+        .keyboard {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        .keys-container {
+            display: flex;
+            gap: 2px;
+            min-width: 800px;
+            position: relative;
+            height: 180px;
+        }
+        
+        .key {
+            flex: 1;
+            border: 1px solid #333;
+            border-radius: 0 0 5px 5px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.05s;
+            position: relative;
+            min-width: 35px;
+        }
+        
+        .key.white {
+            background: linear-gradient(to bottom, #ffffff 0%, #e0e0e0 100%);
+            height: 180px;
+            z-index: 1;
+        }
+        
+        .key.white:hover {
+            background: linear-gradient(to bottom, #e0e0e0 0%, #c0c0c0 100%);
+        }
+        
+        .key.white:active, .key.white.active {
+            background: linear-gradient(to bottom, #00d4ff 0%, #0099cc 100%);
+            box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .key.black {
+            background: linear-gradient(to bottom, #2a2a2a 0%, #000000 100%);
+            height: 110px;
+            width: 25px;
+            position: absolute;
+            z-index: 2;
+            margin-left: -12px;
+        }
+        
+        .key.black:hover {
+            background: linear-gradient(to bottom, #3a3a3a 0%, #1a1a1a 100%);
+        }
+        
+        .key.black:active, .key.black.active {
+            background: linear-gradient(to bottom, #00d4ff 0%, #0099cc 100%);
+            box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .key-label {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .key.black .key-label {
+            color: #888;
+            bottom: 5px;
+            font-size: 0.7em;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.panic {
+            background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+            box-shadow: 0 4px 15px rgba(255, 68, 68, 0.3);
+        }
+        
+        button.toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        button.toggle.active {
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border-color: #00d4ff;
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+        
+        @media (max-width: 768px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎹 Rockit Synth</h1>
+        
+        <!-- Keyboard -->
+        <div class="synth-panel">
+            <div class="panel-title">Keyboard (C3-C5)</div>
+            <div class="keyboard">
+                <div class="keys-container" id="keyboard"></div>
+            </div>
+        </div>
+        
+        <!-- Filter Section -->
+        <div class="synth-panel">
+            <div class="panel-title">Filter</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Cutoff</span>
+                        <span class="control-value" id="cutoff-val">100</span>
+                    </div>
+                    <input type="range" id="cutoff" min="0" max="127" value="100" data-cc="74">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Resonance</span>
+                        <span class="control-value" id="resonance-val">20</span>
+                    </div>
+                    <input type="range" id="resonance" min="0" max="127" value="20" data-cc="71">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Envelope Section -->
+        <div class="synth-panel">
+            <div class="panel-title">Envelope</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Attack</span>
+                        <span class="control-value" id="attack-val">5</span>
+                    </div>
+                    <input type="range" id="attack" min="0" max="127" value="5" data-cc="73">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Decay</span>
+                        <span class="control-value" id="decay-val">40</span>
+                    </div>
+                    <input type="range" id="decay" min="0" max="127" value="40" data-cc="75">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Release</span>
+                        <span class="control-value" id="release-val">30</span>
+                    </div>
+                    <input type="range" id="release" min="0" max="127" value="30" data-cc="70">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Oscillator Section -->
+        <div class="synth-panel">
+            <div class="panel-title">Oscillator</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Osc Mix</span>
+                        <span class="control-value" id="oscmix-val">64</span>
+                    </div>
+                    <input type="range" id="oscmix" min="0" max="127" value="64" data-cc="72">
+                </div>
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Sub Oscillator</span>
+                    </div>
+                    <button class="toggle" id="subosc" data-cc="76" data-state="0">OFF</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- LFO Section -->
+        <div class="synth-panel">
+            <div class="panel-title">LFO</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>LFO Depth</span>
+                        <span class="control-value" id="lfodepth-val">0</span>
+                    </div>
+                    <input type="range" id="lfodepth" min="0" max="127" value="0" data-cc="1">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Voice Mode Section -->
+        <div class="synth-panel">
+            <div class="panel-title">Voice Mode</div>
+            <div class="button-group">
+                <button class="toggle" id="monopara" data-cc="102" data-state="0">Mono</button>
+                <button class="toggle" id="voicecount" data-cc="103" data-state="0">2-Voice</button>
+            </div>
+        </div>
+        
+        <!-- Master Section -->
+        <div class="synth-panel">
+            <div class="panel-title">Master</div>
+            <div class="controls-grid">
+                <div class="control-group">
+                    <div class="control-label">
+                        <span>Volume</span>
+                        <span class="control-value" id="volume-val">100</span>
+                    </div>
+                    <input type="range" id="volume" min="0" max="127" value="100" data-cc="7">
+                </div>
+            </div>
+            <div class="button-group" style="margin-top: 15px;">
+                <button class="panic" id="panic">🚨 PANIC (All Notes Off)</button>
+            </div>
+        </div>
+        
+        <div class="status">
+            Connected to Rockit Synth • TCP MIDI Active
+        </div>
+    </div>
+
+    <script>
+        // API helper
+        async function sendCC(cc, value) {
+            try {
+                await fetch('/api/cc', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cc, value })
+                });
+            } catch (e) {
+                console.error('CC send error:', e);
+            }
+        }
+        
+        async function sendNote(note, action, velocity = 100) {
+            try {
+                await fetch('/api/note', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note, action, velocity })
+                });
+            } catch (e) {
+                console.error('Note send error:', e);
+            }
+        }
+        
+        // Setup all sliders
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            const cc = parseInt(slider.dataset.cc);
+            const valueDisplay = document.getElementById(slider.id + '-val');
+            
+            slider.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                valueDisplay.textContent = value;
+                sendCC(cc, value);
+            });
+        });
+        
+        // Setup toggle buttons
+        document.querySelectorAll('button.toggle').forEach(btn => {
+            if (btn.id === 'subosc' || btn.id === 'monopara' || btn.id === 'voicecount') {
+                btn.addEventListener('click', () => {
+                    const cc = parseInt(btn.dataset.cc);
+                    let state = parseInt(btn.dataset.state);
+                    state = state === 0 ? 1 : 0;
+                    btn.dataset.state = state;
+                    
+                    if (btn.id === 'subosc') {
+                        btn.textContent = state === 1 ? 'ON' : 'OFF';
+                        btn.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    } else if (btn.id === 'monopara') {
+                        btn.textContent = state === 1 ? 'Para' : 'Mono';
+                        btn.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    } else if (btn.id === 'voicecount') {
+                        btn.textContent = state === 1 ? '3-Voice' : '2-Voice';
+                        btn.classList.toggle('active', state === 1);
+                        sendCC(cc, state === 1 ? 127 : 0);
+                    }
+                });
+            }
+        });
+        
+        // Panic button
+        document.getElementById('panic').addEventListener('click', async () => {
+            await fetch('/api/panic', { method: 'POST' });
+            document.querySelectorAll('.key.active').forEach(k => k.classList.remove('active'));
+        });
+        
+        // Build keyboard (2 octaves: C3 to C5)
+        const keyboard = document.getElementById('keyboard');
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const startNote = 48; // C3
+        const octaves = 2;
+        
+        let whiteKeyIndex = 0;
+        for (let octave = 0; octave <= octaves; octave++) {
+            for (let i = 0; i < 12; i++) {
+                if (octave === octaves && i > 0) break; // Stop at C5
+                
+                const noteName = notes[i];
+                const midiNote = startNote + (octave * 12) + i;
+                const isBlack = noteName.includes('#');
+                
+                const key = document.createElement('div');
+                key.className = 'key ' + (isBlack ? 'black' : 'white');
+                key.dataset.note = midiNote;
+                
+                const label = document.createElement('div');
+                label.className = 'key-label';
+                label.textContent = noteName + (3 + octave);
+                key.appendChild(label);
+                
+                if (isBlack) {
+                    key.style.left = (whiteKeyIndex * 37 - 12) + 'px';
+                    keyboard.appendChild(key);
+                } else {
+                    key.style.left = (whiteKeyIndex * 37) + 'px';
+                    keyboard.appendChild(key);
+                    whiteKeyIndex++;
+                }
+                
+                // Mouse events
+                key.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    key.classList.add('active');
+                    sendNote(midiNote, 'on');
+                });
+                
+                key.addEventListener('mouseup', () => {
+                    key.classList.remove('active');
+                    sendNote(midiNote, 'off');
+                });
+                
+                key.addEventListener('mouseleave', () => {
+                    if (key.classList.contains('active')) {
+                        key.classList.remove('active');
+                        sendNote(midiNote, 'off');
+                    }
+                });
+                
+                // Touch events for mobile
+                key.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    key.classList.add('active');
+                    sendNote(midiNote, 'on');
+                });
+                
+                key.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    key.classList.remove('active');
+                    sendNote(midiNote, 'off');
+                });
+            }
+        }
+        
+        // Keyboard shortcuts (computer keyboard)
+        const keyMap = {
+            'a': 48, 'w': 49, 's': 50, 'e': 51, 'd': 52, 'f': 53, 't': 54, 
+            'g': 55, 'y': 56, 'h': 57, 'u': 58, 'j': 59, 'k': 60,
+            'o': 61, 'l': 62, 'p': 63, ';': 64, "'": 65
+        };
+        
+        const activeKeys = new Set();
+        
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keyMap[key] && !activeKeys.has(key)) {
+                activeKeys.add(key);
+                const note = keyMap[key];
+                const keyElement = document.querySelector(`[data-note="${note}"]`);
+                if (keyElement) {
+                    keyElement.classList.add('active');
+                    sendNote(note, 'on');
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keyMap[key]) {
+                activeKeys.delete(key);
+                const note = keyMap[key];
+                const keyElement = document.querySelector(`[data-note="${note}"]`);
+                if (keyElement) {
+                    keyElement.classList.remove('active');
+                    sendNote(note, 'off');
+                }
+            }
+        });
+        
+        console.log('🎹 Rockit Synth UI loaded');
+    </script>
+</body>
+</html>
