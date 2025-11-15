@@ -358,13 +358,18 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int fine){
 }
 
 void rockit_engine_init(rockit_engine_t *e){
+    (void)e;
+
+    // CRITICAL: Initialize all parameters to their default values
+    params_init();
+
     memset(V, 0, sizeof(V));
     memset(&L1, 0, sizeof(L1));
     memset(&L2, 0, sizeof(L2));
-    
+
     // Initialize filter with default sample rate
     svf_init(&flt, 48000);
-    
+
     // Initialize paraphonic system
     paraphonic_init();
 }
