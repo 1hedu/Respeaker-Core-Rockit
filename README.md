@@ -15,6 +15,9 @@ This project brings the feature-rich Rockit paraphonic synthesizer to the ReSpea
 - **ADSR envelope** with filter envelope modulation
 - **Sub-oscillator** for added low-end
 - **Glide/portamento** with adjustable time
+- **Arpeggiator** with 16 patterns, configurable speed, length, and gate (drone mode)
+- **Drone/loop mode** with continuous note and manual pitch control
+- **Patch storage** with 16 preset slots (save/recall via MIDI CC)
 - **TCP MIDI server** on port 50000 for remote control
 - **Web UI** for parameter control via browser
 
@@ -97,7 +100,7 @@ The web UI sends HTTP requests to port 8090, which the MIDI bridge converts to r
 │   ├── main.c                    # Entry point, ALSA setup, MIDI server
 │   ├── rockit_engine.c           # Synth engine (oscillators, envelope, filter)
 │   ├── rockit_engine.h
-│   ├── params.c                  # Parameter management (thread-safe double buffering)
+│   ├── params.c                  # Parameter management
 │   ├── params.h
 │   ├── paraphonic.h              # Voice allocation
 │   ├── wavetables.c              # Waveform lookup tables
@@ -146,13 +149,29 @@ The web UI sends HTTP requests to port 8090, which the MIDI bridge converts to r
 | 88 | LFO1 Shape | 0-127 | LFO1 waveform (value >> 3) |
 | 89 | LFO1 Dest | 0-127 | LFO1 destination (value >> 4) |
 | 90 | Glide | 0-127 | Portamento time |
-| 91-94 | LFO2 controls | 0-127 | Rate, Depth, Shape, Dest |
+| 91 | Drone Mode | 0-127 | Toggle: 0-63=off, 64-127=on |
+| 92 | Save Patch | 0-127 | Save to patch slot (value >> 3 = 0-15) |
+| 93 | Recall Patch | 0-127 | Load from patch slot (value >> 3 = 0-15) |
+| 95 | LFO2 Rate | 0-127 | LFO2 frequency |
+| 96 | LFO2 Depth | 0-127 | LFO2 modulation amount |
+| 97 | LFO2 Shape | 0-127 | LFO2 waveform (value >> 3) |
+| 98 | LFO2 Dest | 0-127 | LFO2 destination (value >> 4) |
 | 102 | Mode | 0-127 | Mono/Para toggle |
 | 103 | Voices | 0-127 | 2/3-voice toggle |
 
 ### Note Messages
 - **Note On**: MIDI note number 0-127, velocity 0-127
 - **Note Off**: MIDI note number 0-127
+
+### Special Modes
+
+**Drone Mode (CC 91):**
+When drone mode is enabled, the synthesizer enters a continuous note mode with special control mappings:
+- **CC 73 (Attack)**: Sets the base MIDI note for arpeggiator (value >> 1 = 0-63)
+- **CC 75 (Decay)**: Selects arpeggiator pattern (value * 15 / 127 = 0-15)
+- **CC 70 (Release)**: Controls arpeggiator speed (255 - value = faster at higher values)
+
+The arpeggiator provides 16 patterns including chromatic runs, scales, and octave jumps. Gate time and pattern length are controlled via the arpeggiator parameters (P_ARP_GATE, P_ARP_LENGTH).
 
 ## CLI Commands
 
@@ -181,6 +200,25 @@ This version includes critical fixes from the original port attempt:
 3. **16 Waveform Support** - Added all waveforms from original Rockit 1.13
 4. **params_init() Bug** - Added missing initialization call (was causing zero volume)
 
+## Fixes Applied (v1.1)
+
+Additional stability and performance improvements:
+
+1. **C MIDI Bridge** - Replaced Python HTTP server with lightweight C implementation
+   - Eliminates Python interpreter bottleneck on embedded MIPS
+   - ~10-100x faster HTTP request handling
+   - Fixes slider stability during rapid parameter changes
+
+2. **Startup Noise Fix** - Resolved digital blaring noise on synth startup
+   - Removed `killall python` from startup script (was killing Mopidy)
+   - Added proper ALSA state management (drop/prepare/drain)
+   - Zero-initialized audio buffers with calloc()
+
+3. **Code Quality** - Eliminated all compilation warnings
+   - Fixed string comparison bugs
+   - Proper type-safe hardsync wavetable access
+   - Removed unused variables
+
 ## Performance
 
 - **CPU Usage**: ~25% at 48kHz sample rate
@@ -194,14 +232,19 @@ This version includes critical fixes from the original port attempt:
 - Sub-oscillator uses simple -1 octave sine wave (original had more complex implementation)
 - Some morph waveforms reuse base waveforms (requires additional wavetables for full morphing)
 
+## Implemented Features
+
+- ✅ **Arpeggiator** - 16 patterns with configurable speed, length, and gate (available in drone mode)
+- ✅ **Preset System** - Patch storage with save/load functionality (filesystem-based)
+- ✅ **Drone/Loop Mode** - Continuous note mode with manual pitch/amplitude control
+
 ## Future Enhancements
 
-- [ ] Complete LFO modulation routing
-- [ ] Add arpeggiator (present in original firmware)
-- [ ] Implement preset system
-- [ ] Add drone/loop mode
+- [ ] Complete LFO modulation routing (full matrix implementation)
 - [ ] Optimize wavetable access for better performance
 - [ ] Add MIDI learn for CC mapping
+- [ ] Expand morph waveforms with full wavetable interpolation
+- [ ] Web-based patch management interface
 
 ## Credits
 
@@ -230,5 +273,6 @@ For questions about the original Rockit firmware, see http://hackmelectronics.co
 
 ---
 
-**Status**: ✅ Working (2025-01-15)
+**Status**: ✅ Working (v1.1 - 2025-11-15)
 **Tested On**: ReSpeaker Core v1.0 (MT7688) with OpenWrt Chaos Calmer
+**Key Improvements**: C MIDI bridge for slider stability, startup noise fix, patch storage, arpeggiator

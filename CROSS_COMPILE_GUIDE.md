@@ -143,24 +143,30 @@ LDFLAGS = -Wl,--no-as-needed -L$(STAGING)/usr/lib -Wl,-rpath-link,$(STAGING)/usr
 LIBS = -lasound -lm -lpthread
 
 # Source files
-SOURCES = main.c rockit_engine.c params.c wavetables.c filter_svf.c socket_midi_raw.c
+SOURCES = main.c rockit_engine.c params.c wavetables.c filter_svf.c socket_midi_raw.c patch_storage.c
 OBJECTS = $(SOURCES:.c=.o)
 TARGET = respeaker_rockit
+BRIDGE = midi_bridge
 
 # Build rules
-all: $(TARGET)
+all: $(TARGET) $(BRIDGE)
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(LDFLAGS) $(OBJECTS) $(LIBS) -o $@
+
+$(BRIDGE): midi_bridge.c
+	$(CC) $(CFLAGS) -o $@ midi_bridge.c
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	rm -f $(TARGET) $(BRIDGE) $(OBJECTS)
 
 .PHONY: all clean
 ```
+
+**Note**: The `midi_bridge` is a lightweight C HTTP server that replaces the Python MIDI bridge for better performance (~10-100x faster).
 
 ### Compile
 ```bash
@@ -179,8 +185,12 @@ mipsel-openwrt-linux-readelf -d respeaker_rockit | grep NEEDED
 ## Step 4: Deploy to ReSpeaker
 
 ```bash
-# Copy binary to device
-scp respeaker_rockit root@respeaker.local:/root/
+# Copy binaries to device
+scp respeaker_rockit midi_bridge root@respeaker.local:/root/
+
+# Copy startup script (optional)
+scp start_rockit.sh root@respeaker.local:/root/
+ssh root@respeaker.local "chmod +x /root/start_rockit.sh"
 
 # Copy ALSA libraries (if needed)
 scp ~/respeaker-staging/usr/lib/libasound.so* root@respeaker.local:/usr/lib/
@@ -188,12 +198,16 @@ scp ~/respeaker-staging/usr/lib/libasound.so* root@respeaker.local:/usr/lib/
 # SSH into device
 ssh root@respeaker.local
 
-# Test
+# Test with startup script (recommended)
 cd /root
-./respeaker_rockit --tcp-midi
+./start_rockit.sh
+
+# Or manually start components
+./respeaker_rockit --tcp-midi &
+./midi_bridge &
 
 # Or specify audio device
-./respeaker_rockit hw:0,0 --tcp-midi
+./respeaker_rockit hw:0,0 --tcp-midi &
 ```
 
 ## Common Issues and Solutions
@@ -255,6 +269,7 @@ export RANLIB=mipsel-openwrt-linux-ranlib
 ```bash
 # Check binary architecture
 file respeaker_rockit
+file midi_bridge
 mipsel-openwrt-linux-readelf -h respeaker_rockit
 
 # Check library dependencies
@@ -262,6 +277,9 @@ mipsel-openwrt-linux-readelf -d respeaker_rockit | grep NEEDED
 
 # Check symbols
 mipsel-openwrt-linux-nm -D respeaker_rockit | grep snd_pcm
+
+# Verify both binaries are MIPS
+ls -lh respeaker_rockit midi_bridge
 ```
 
 ### On Target Device
@@ -296,14 +314,17 @@ top
 
 ## Success Criteria
 
-✅ Binary file shows: `MIPS, MIPS32 rel2`
+✅ Both binaries show: `MIPS, MIPS32 rel2`
 ✅ ldd shows all dependencies found
 ✅ No "incompatible" errors when running
 ✅ Audio output works with aplay
 ✅ Synth produces sound on note events
+✅ MIDI bridge responds on port 8090
+✅ Web UI can control synth parameters
 
 ---
 
-**Last Updated**: 2025-01-15
+**Last Updated**: 2025-11-15
+**Version**: v1.1 (with C MIDI bridge and stability fixes)
 **Tested On**: ReSpeaker Core v1.0 (MT7688)
 **Toolchain**: OpenWrt SDK 15.05.1 / GCC 4.8.3 / uClibc 0.9.33.2
