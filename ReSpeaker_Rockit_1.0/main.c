@@ -221,10 +221,8 @@ int main(int argc,char**argv){
             fprintf(stderr,"  CC 73:  Attack\\n");
             fprintf(stderr,"  CC 75:  Decay\\n");
             fprintf(stderr,"  CC 70:  Release\\n\\n");
-            // -------------------
-            midi_started = 1;
-        } 
-        
+        }
+
         // 2. Check for the device name override flag
         else if(strcmp(argv[ai], "-d")==0 && ai+1 < argc){
             dev = argv[ai+1];
