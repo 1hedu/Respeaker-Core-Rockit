@@ -19,7 +19,7 @@ typedef enum {
   P_FILTER_CUTOFF,
   P_FILTER_RESONANCE,
   P_FILTER_ENV_AMT,
-  P_FILTER_MODE,  // 0:LP 1:HP 2:BP 3:Notch
+  P_FILTER_MODE,  // 0:LP 1:BP 2:HP 3:Notch (original Rockit order)
   
   // LFO 1 (16 waveforms matching original Rockit)
   P_LFO1_RATE, 

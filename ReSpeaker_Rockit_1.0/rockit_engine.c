@@ -750,12 +750,13 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         }
 
         // Convert to float for filter and apply correct filter mode
+        // Original Rockit order: 0=LP, 1=BP, 2=HP (from manual section 4)
         float sf = (float)sat16(mix) / 32768.0f;
         switch(filter_mode) {
-            case 0: sf = svf_process_lp(&flt, sf); break;  // Lowpass
-            case 1: sf = svf_process_hp(&flt, sf); break;  // Highpass
-            case 2: sf = svf_process_bp(&flt, sf); break;  // Bandpass
-            case 3: sf = svf_process_notch(&flt, sf); break;  // Notch
+            case 0: sf = svf_process_lp(&flt, sf); break;    // Lowpass
+            case 1: sf = svf_process_bp(&flt, sf); break;    // Bandpass (was HP!)
+            case 2: sf = svf_process_hp(&flt, sf); break;    // Highpass (was BP!)
+            case 3: sf = svf_process_notch(&flt, sf); break; // Notch (bonus mode)
             default: sf = svf_process_lp(&flt, sf); break;
         }
         int16_t filtered = (int16_t)(sf * 32768.0f);
