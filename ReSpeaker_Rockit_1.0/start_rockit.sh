@@ -7,7 +7,7 @@ echo "🎹 Starting Rockit Synth with C MIDI Bridge..."
 killall respeaker_rockit 2>/dev/null
 killall midi_bridge.py 2>/dev/null
 killall midi_bridge 2>/dev/null
-killall python 2>/dev/null
+# NOTE: DO NOT killall python - this kills Mopidy which causes audio noise!
 sleep 1
 
 # Start the synth with TCP MIDI
