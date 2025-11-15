@@ -278,8 +278,14 @@ static inline int16_t wavetable_sample(uint32_t phase, wave_t w, uint8_t midi_no
             }
             break;
 
-        case W_HARDSYNC:  // Hard sync
-            sample_u8 = blend_mipmaps(G_AUC_HARDSYNC_2_WAVETABLE_LUT, mipmap >> 1, 0, i >> 1);
+        case W_HARDSYNC:  // Hard sync (uses 128-sample table, no blending)
+            // Hardsync table has 16 mipmaps with 128 samples each
+            // Use half the mipmap levels and half the phase resolution
+            {
+                uint8_t hs_mipmap = (mipmap >> 1) & 0x0F;  // Clamp to 0-15
+                uint8_t hs_phase = i >> 1;                  // 0-127 index
+                sample_u8 = G_AUC_HARDSYNC_2_WAVETABLE_LUT[hs_mipmap][hs_phase];
+            }
             break;
 
         case W_NOISE:  // LFSR-based pseudo-random noise

@@ -189,8 +189,7 @@ int main(int argc,char**argv){
     const char*dev = "default"; // Default audio device name
     int rate = 48000;
     snd_pcm_uframes_t per = 256;
-    int midi_started = 0; // Flag to track if the MIDI system has started
-    
+
     signal(SIGINT, onint);
 
     rockit_engine_t e;
@@ -233,7 +232,7 @@ int main(int argc,char**argv){
         }
         
         // 3. Otherwise, if the current device is still 'default', set it to this argument
-        else if (dev == "default") {
+        else if (strcmp(dev, "default") == 0) {
             dev = argv[ai];
         }
     }
@@ -241,8 +240,13 @@ int main(int argc,char**argv){
     
     // Setup audio PCM with the determined device name
     if(setup(dev, rate, per) < 0) return 1;
-    
-    int16_t *buf = (int16_t*)malloc(per*2*sizeof(int16_t));
+
+    // Allocate and CLEAR audio buffer to prevent garbage noise on startup
+    int16_t *buf = (int16_t*)calloc(per * 2, sizeof(int16_t));
+    if (!buf) {
+        fprintf(stderr, "Error: Failed to allocate audio buffer\n");
+        return 1;
+    }
     
     fprintf(stderr,"==============================================\n");
     fprintf(stderr,"Rockit Paraphonic Synth - ReSpeaker Edition\n");
