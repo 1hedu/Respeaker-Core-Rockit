@@ -22,21 +22,26 @@
 #define BUFFER_SIZE 2048
 
 static int http_sock = -1;
-static int midi_sock = -1;
 static volatile int running = 1;
 
 void signal_handler(int sig) {
     running = 0;
 }
 
-// Connect to MIDI TCP server
-int connect_midi(void) {
+// Send 3-byte raw MIDI message (creates new connection each time like Python version)
+int send_midi_message(unsigned char status, unsigned char data1, unsigned char data2) {
     struct sockaddr_in addr;
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        perror("MIDI socket");
         return -1;
     }
+
+    // Set socket timeout to avoid hanging
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500000;  // 500ms timeout
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -44,23 +49,15 @@ int connect_midi(void) {
     inet_pton(AF_INET, MIDI_HOST, &addr.sin_addr);
 
     if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("MIDI connect");
         close(sock);
         return -1;
     }
 
-    fprintf(stderr, "Connected to MIDI server on %s:%d\n", MIDI_HOST, MIDI_PORT);
-    return sock;
-}
-
-// Send 3-byte raw MIDI message
-int send_midi(int sock, unsigned char status, unsigned char data1, unsigned char data2) {
     unsigned char msg[3] = {status, data1, data2};
-    if (send(sock, msg, 3, MSG_NOSIGNAL) != 3) {
-        perror("MIDI send");
-        return -1;
-    }
-    return 0;
+    int result = (send(sock, msg, 3, MSG_NOSIGNAL) == 3) ? 0 : -1;
+
+    close(sock);
+    return result;
 }
 
 // Parse query parameter from URL
@@ -120,17 +117,15 @@ void handle_request(int client_sock, const char *request) {
         int value = get_param(url, "value", -1);
 
         if (cc >= 0 && cc <= 127 && value >= 0 && value <= 127) {
-            if (midi_sock >= 0) {
-                // MIDI CC: Status=0xB0 (channel 0), CC#, Value
-                if (send_midi(midi_sock, 0xB0, cc, value) == 0) {
-                    snprintf(response, sizeof(response),
-                        "HTTP/1.1 200 OK\r\n"
-                        "Access-Control-Allow-Origin: *\r\n"
-                        "Content-Type: text/plain\r\n"
-                        "Content-Length: 2\r\n\r\nOK");
-                    send(client_sock, response, strlen(response), MSG_NOSIGNAL);
-                    return;
-                }
+            // MIDI CC: Status=0xB0 (channel 0), CC#, Value
+            if (send_midi_message(0xB0, cc, value) == 0) {
+                snprintf(response, sizeof(response),
+                    "HTTP/1.1 200 OK\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Content-Length: 2\r\n\r\nOK");
+                send(client_sock, response, strlen(response), MSG_NOSIGNAL);
+                return;
             }
         }
     }
@@ -142,38 +137,32 @@ void handle_request(int client_sock, const char *request) {
         int is_on = strstr(url, "action=on") != NULL;
 
         if (note >= 0 && note <= 127 && velocity >= 0 && velocity <= 127) {
-            if (midi_sock >= 0) {
-                unsigned char status = is_on ? 0x90 : 0x80;  // Note On/Off
-                if (send_midi(midi_sock, status, note, velocity) == 0) {
-                    snprintf(response, sizeof(response),
-                        "HTTP/1.1 200 OK\r\n"
-                        "Access-Control-Allow-Origin: *\r\n"
-                        "Content-Type: text/plain\r\n"
-                        "Content-Length: 2\r\n\r\nOK");
-                    send(client_sock, response, strlen(response), MSG_NOSIGNAL);
-                    return;
-                }
+            unsigned char status = is_on ? 0x90 : 0x80;  // Note On/Off
+            if (send_midi_message(status, note, velocity) == 0) {
+                snprintf(response, sizeof(response),
+                    "HTTP/1.1 200 OK\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Content-Length: 2\r\n\r\nOK");
+                send(client_sock, response, strlen(response), MSG_NOSIGNAL);
+                return;
             }
         }
     }
     else if (url_match(url, "/status")) {
-        const char *status = (midi_sock >= 0) ? "OK" : "disconnected";
         snprintf(response, sizeof(response),
             "HTTP/1.1 200 OK\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "Content-Type: text/plain\r\n"
-            "Content-Length: %zu\r\n\r\n%s",
-            strlen(status), status);
+            "Content-Length: 2\r\n\r\nOK");
         send(client_sock, response, strlen(response), MSG_NOSIGNAL);
         return;
     }
     else if (url_match(url, "/panic")) {
         // Send Note Off for all 128 MIDI notes
-        if (midi_sock >= 0) {
-            int i;
-            for (i = 0; i < 128; i++) {
-                send_midi(midi_sock, 0x80, i, 0);  // Note Off for note i
-            }
+        int i;
+        for (i = 0; i < 128; i++) {
+            send_midi_message(0x80, i, 0);  // Note Off for note i
         }
         snprintf(response, sizeof(response),
             "HTTP/1.1 200 OK\r\n"
@@ -200,12 +189,6 @@ int main(void) {
     signal(SIGTERM, signal_handler);
 
     fprintf(stderr, "Rockit MIDI Bridge (C) starting...\n");
-
-    // Connect to MIDI server
-    midi_sock = connect_midi();
-    if (midi_sock < 0) {
-        fprintf(stderr, "Warning: MIDI server not ready yet\n");
-    }
 
     // Create HTTP server socket
     http_sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -249,12 +232,7 @@ int main(void) {
             continue;
         }
 
-        // Reconnect MIDI if disconnected
-        if (midi_sock < 0) {
-            midi_sock = connect_midi();
-        }
-
-        // Read HTTP request (non-blocking would be better but this is simple)
+        // Read HTTP request
         ssize_t n = recv(client_sock, buffer, sizeof(buffer) - 1, 0);
         if (n > 0) {
             buffer[n] = '\0';
@@ -266,7 +244,6 @@ int main(void) {
 
     fprintf(stderr, "\nShutting down...\n");
     if (http_sock >= 0) close(http_sock);
-    if (midi_sock >= 0) close(midi_sock);
 
     return 0;
 }
