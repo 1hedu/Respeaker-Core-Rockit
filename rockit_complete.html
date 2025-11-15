@@ -268,34 +268,64 @@
 
     <script>
         var MIDI_API = 'http://' + window.location.hostname + ':8090';
-        
+
         function sendCC(cc, value) {
             fetch(MIDI_API + '/cc?cc=' + cc + '&value=' + value, { method: 'POST' })
                 .catch(function(e) { console.error(e); });
         }
-        
+
         function sendNote(note, action, velocity) {
             velocity = velocity || 100;
             fetch(MIDI_API + '/note?note=' + note + '&action=' + action + '&velocity=' + velocity, { method: 'POST' })
                 .catch(function(e) { console.error(e); });
         }
-        
+
         function checkConnection() {
             fetch(MIDI_API + '/status')
                 .then(function() { document.getElementById('status').textContent = 'Connected • TCP MIDI Active'; })
                 .catch(function() { document.getElementById('status').textContent = '⚠️ MIDI bridge not running'; });
         }
         checkConnection();
-        
-        // Setup sliders
+
+        // Throttle function to prevent network flooding
+        // Limits function calls to at most once every 'delay' milliseconds
+        function throttle(func, delay) {
+            var lastCall = 0;
+            var timeoutId = null;
+            return function() {
+                var now = Date.now();
+                var args = arguments;
+                var context = this;
+
+                if (now - lastCall >= delay) {
+                    // Immediate call if enough time has passed
+                    lastCall = now;
+                    func.apply(context, args);
+                } else {
+                    // Schedule a delayed call for the latest value
+                    if (timeoutId) clearTimeout(timeoutId);
+                    timeoutId = setTimeout(function() {
+                        lastCall = Date.now();
+                        func.apply(context, args);
+                    }, delay - (now - lastCall));
+                }
+            };
+        }
+
+        // Setup sliders with throttled CC sending (16ms = ~60Hz max update rate)
         var sliders = document.querySelectorAll('input[type="range"]');
         for (var i = 0; i < sliders.length; i++) {
             (function(slider) {
+                var cc = parseInt(slider.getAttribute('data-cc'));
+                var throttledSend = throttle(function(value) {
+                    sendCC(cc, value);
+                }, 16);  // 16ms = ~60 updates/second max
+
                 slider.addEventListener('input', function(e) {
                     var value = parseInt(e.target.value);
                     var display = document.getElementById(e.target.id + '-val');
-                    display.textContent = value;
-                    sendCC(parseInt(e.target.getAttribute('data-cc')), value);
+                    display.textContent = value;  // Update display immediately
+                    throttledSend(value);  // Send CC with throttling
                 });
             })(sliders[i]);
         }
