@@ -199,7 +199,9 @@ See [LICENSE](LICENSE) file for details.
 
 For issues specific to this ReSpeaker port, please open an issue on GitHub.
 
-For questions about the original Rockit firmware, see http://hackmelectronics.com/
+For questions about the original Rockit firmware, see waybackmachine http://hackmeopen.com/
+
+HUGE Shoutout to the Rockit Synth creator, Matt Heins. 
 
 ---
 
