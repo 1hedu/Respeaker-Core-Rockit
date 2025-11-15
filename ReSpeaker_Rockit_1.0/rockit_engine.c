@@ -400,9 +400,18 @@ static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     // OSC1: Base tuning (no detune offset)
     v->inc1 = calc_phase_inc(note, 0, sr);
 
-    // OSC2: With detune (±16 semitones centered at 64)
-    int tune = params_get(P_TUNE);
-    v->inc_target = calc_phase_inc(note, tune, sr);
+    // OSC2: Sub-osc mode OR detune
+    // Original Rockit: When sub-osc is ON, OSC2 plays one octave below (note-12) and ignores detune knob
+    uint8_t sub_osc_mode = params_get(P_SUBOSC);
+    if(sub_osc_mode) {
+        // Sub-osc mode: OSC2 locked to one octave below (note - 12)
+        uint8_t sub_note = (note >= 12) ? (note - 12) : 0;
+        v->inc_target = calc_phase_inc(sub_note, 0, sr);  // No detune in sub-osc mode
+    } else {
+        // Normal mode: OSC2 with detune (±16 semitones centered at 64)
+        int tune = params_get(P_TUNE);
+        v->inc_target = calc_phase_inc(note, tune, sr);
+    }
 
     // Glide/Portamento: If glide is OFF, jump immediately. If ON, glide from current to target.
     int glide_param = params_get(P_GLIDE_TIME);
@@ -445,10 +454,20 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune, int mix){
     // OSC1: Always at base tuning (no detune)
     // Keep inc1 as set in voice_trigger
 
-    // OSC2: Always recalculate with current tune (may be LFO-modulated)
-    // This allows LFO detune/vibrato to work properly
-    v->inc2 = calc_phase_inc(v->note, tune, sr);
-    v->inc_target = v->inc2;
+    // OSC2: Sub-osc mode OR detune (may be LFO-modulated)
+    // Original Rockit: When sub-osc is ON, OSC2 locked to one octave below, ignores detune
+    uint8_t sub_osc_mode = params_get(P_SUBOSC);
+    if(sub_osc_mode) {
+        // Sub-osc mode: OSC2 locked to one octave below (note - 12), ignore tune parameter
+        uint8_t sub_note = (v->note >= 12) ? (v->note - 12) : 0;
+        v->inc2 = calc_phase_inc(sub_note, 0, sr);
+        v->inc_target = v->inc2;
+    } else {
+        // Normal mode: Always recalculate with current tune (may be LFO-modulated)
+        // This allows LFO detune/vibrato to work properly
+        v->inc2 = calc_phase_inc(v->note, tune, sr);
+        v->inc_target = v->inc2;
+    }
 
     // Glide (affects OSC2 only) - smooth transition between inc_cur and inc_target
     float glide = (float)params_get(P_GLIDE_TIME)/127.0f;
