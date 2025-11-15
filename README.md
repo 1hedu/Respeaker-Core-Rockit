@@ -87,7 +87,6 @@ The synth will start and listen for MIDI on TCP port 50000.
 │   ├── avr_compat.h              # AVR compatibility shims
 │   └── Makefile
 │
-├── respeaker_rockit_.0.9/        # Previous version (reference)
 ├── rockit_1.13_paraphonic.tar.gz # Original ATmega644P firmware
 ├── rockit_complete.html          # Web-based control interface
 ├── CROSS_COMPILE_GUIDE.md        # Detailed build instructions
