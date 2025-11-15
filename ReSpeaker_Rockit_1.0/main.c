@@ -253,6 +253,11 @@ int main(int argc,char**argv){
     fprintf(stderr,"Tip: use 'hw:0,0' for 1/4\" line out if default doesn't work\n\n");
     
     fprintf(stderr,"Starting audio engine...\n");
+
+    // Reset ALSA state to clear any garbage from previous runs
+    snd_pcm_drop(h);      // Drop any pending frames from previous session
+    snd_pcm_prepare(h);   // Prepare for new audio stream
+
     fprintf(stderr,"Type 'HELP' for commands. Notes stay on until you turn them OFF!\n\n");
 
     while(run){
@@ -265,7 +270,12 @@ int main(int argc,char**argv){
     }
     
     fprintf(stderr,"\nShutting down...\n");
-    snd_pcm_close(h); 
-    free(buf); 
+
+    // Properly drain and stop ALSA to prevent state issues on next startup
+    snd_pcm_drop(h);       // Drop pending frames immediately
+    snd_pcm_drain(h);      // Wait for remaining data to be played
+    snd_pcm_close(h);      // Close the device
+
+    free(buf);
     return 0;
 }
