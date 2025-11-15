@@ -279,7 +279,7 @@
 
         <div class="panel">
             <div class="panel-title">Patch Management (16 Slots)</div>
-            <p style="font-size: 0.75em; color: #888; margin-bottom: 8px;">Patches saved to /tmp/rockit_patches/ as text files</p>
+            <p style="font-size: 0.75em; color: #888; margin-bottom: 8px;">Patches saved to /root/rockit_patches/ (persistent)</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
                 <div style="text-align: center;">
                     <button id="save-patch" style="width: 100%; background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">💾 Save</button>
@@ -315,6 +315,21 @@
         var MIDI_API = 'http://' + window.location.hostname + ':8090';
 
         function sendCC(cc, value) {
+            // Validate inputs to prevent NaN errors
+            cc = parseInt(cc);
+            value = parseInt(value);
+
+            if (isNaN(cc) || isNaN(value)) {
+                console.error('Invalid CC or value:', cc, value);
+                return;
+            }
+
+            // Clamp to MIDI range
+            if (cc < 0 || cc > 127 || value < 0 || value > 127) {
+                console.error('CC or value out of range:', cc, value);
+                return;
+            }
+
             fetch(MIDI_API + '/cc?cc=' + cc + '&value=' + value, { method: 'POST' })
                 .catch(function(e) { console.error(e); });
         }
