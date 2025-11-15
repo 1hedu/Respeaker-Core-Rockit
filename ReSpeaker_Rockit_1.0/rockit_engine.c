@@ -22,12 +22,26 @@ static inline int16_t lut8_to_q15(uint8_t s){
 }
 
 // Wave types - 16 matching original Rockit manual
-typedef enum { 
+typedef enum {
     W_SINE=0, W_SQUARE=1, W_SAW=2, W_TRI=3,
     W_MORPH1=4, W_MORPH2=5, W_MORPH3=6, W_MORPH4=7,
     W_MORPH5=8, W_MORPH6=9, W_MORPH7=10, W_MORPH8=11,
     W_MORPH9=12, W_HARDSYNC=13, W_NOISE=14, W_RAW_SQUARE=15
 } wave_t;
+
+// Envelope states
+typedef enum { ENV_IDLE=0, ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE } env_t;
+
+// Per-voice morph state for time-varying waveforms (matches original Rockit)
+typedef struct {
+    uint8_t morph_timer;        // Sample counter for morph speed
+    uint8_t morph_index;        // 0-255 morph position
+    uint16_t morph_index_16;    // 0-65535 for longer morph cycles
+    uint8_t morph_state;        // State machine for complex morphs (MORPH_8, MORPH_4)
+    uint8_t phase_shifter;      // Phase offset for MORPH_2
+    uint8_t phase_shift_timer;  // Timer for phase shifting
+    uint16_t lfsr;              // Per-voice LFSR for noise
+} morph_state_t;
 
 // Anti-aliasing: mipmap selection based on MIDI note
 static inline uint8_t get_mipmap_index(uint8_t note, uint8_t *blend_pos) {
@@ -319,19 +333,6 @@ static inline int16_t lfo_wave(uint32_t ph, uint8_t shape){
     }
 }
 
-typedef enum { ENV_IDLE=0, ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE } env_t;
-
-// Per-voice morph state for time-varying waveforms (matches original Rockit)
-typedef struct {
-    uint8_t morph_timer;        // Sample counter for morph speed
-    uint8_t morph_index;        // 0-255 morph position
-    uint16_t morph_index_16;    // 0-65535 for longer morph cycles
-    uint8_t morph_state;        // State machine for complex morphs (MORPH_8, MORPH_4)
-    uint8_t phase_shifter;      // Phase offset for MORPH_2
-    uint8_t phase_shift_timer;  // Timer for phase shifting
-    uint16_t lfsr;              // Per-voice LFSR for noise
-} morph_state_t;
-
 typedef struct {
     uint8_t active;
     uint8_t note;
@@ -434,13 +435,6 @@ static void voice_release(voice_state_t *v){
     if(v->env == ENV_IDLE) return;
     v->env = ENV_RELEASE;
     v->t = 0;
-}
-
-// OPTIMIZED: Only recalc tuning when params change
-static void update_voice_tuning_if_changed(voice_state_t *v, int tune, int sr){
-    if(g_tuning_dirty){
-        v->inc_target = calc_phase_inc(v->note, tune, sr);
-    }
 }
 
 static int16_t voice_tick(voice_state_t *v, int sr, int tune){
