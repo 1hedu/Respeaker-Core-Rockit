@@ -38,6 +38,12 @@ const param_spec_t PARAM_SPECS[P_COUNT] = {
   [P_GLIDE_TIME]    = {"glide_ms",    0, 127, 0},
   [P_MASTER_VOL]    = {"volume",      0, 127, 100},
   [P_DRONE_MODE]    = {"drone_mode",  0, 1,   0},   // 0:off 1:on
+
+  // Arpeggiator (for drone mode)
+  [P_ARP_PATTERN]   = {"arp_pattern", 0, 15,  0},   // 16 patterns
+  [P_ARP_SPEED]     = {"arp_speed",   0, 127, 64},  // Speed (higher = faster in original)
+  [P_ARP_LENGTH]    = {"arp_length",  1, 8,   4},   // Number of steps (1-8)
+  [P_ARP_GATE]      = {"arp_gate",    0, 127, 100}, // Gate time percentage
 };
 
 void params_init(void){ 

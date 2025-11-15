@@ -38,6 +38,12 @@ typedef enum {
   P_MASTER_VOL,
   P_DRONE_MODE,   // 0:off 1:on - Continuous note with manual pitch/volume control
 
+  // Arpeggiator (for drone mode)
+  P_ARP_PATTERN,  // 0-15: 16 different arpeggio patterns
+  P_ARP_SPEED,    // 0-127: Arpeggiator speed
+  P_ARP_LENGTH,   // 1-8: Number of steps in pattern to play
+  P_ARP_GATE,     // 0-127: Note gate time (percentage of step)
+
   P_COUNT
 } param_id_t;
 

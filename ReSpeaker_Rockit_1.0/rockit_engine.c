@@ -379,6 +379,32 @@ static int g_sr = 48000;
 static int16_t g_last_tune = -999;
 static uint8_t g_tuning_dirty = 1;
 
+// Arpeggiator patterns (from original Rockit firmware)
+// 16 patterns × 8 steps, values are semitone offsets from base note
+static const int8_t ARP_PATTERNS[16][8] = {
+    {0,0,0,0,0,0,0,0},              // 0: Off (all same note)
+    {0,0,0,0,0,0,0,0},              // 1: Off (all same note)
+    {0,1,2,3,4,5,6,7},              // 2: Up chromatic
+    {0,-1,-2,-3,-4,-5,-6,-7},       // 3: Down chromatic
+    {0,2,4,6,8,10,12,14},           // 4: Up whole steps (2 octaves)
+    {0,4,7,12,4,7,12,16},           // 5: Major chord up
+    {0,3,7,11,3,7,11,12},           // 6: Minor 7th
+    {0,-2,-4,-6,-8,-10,-12,-14},    // 7: Down whole steps
+    {0,5,2,6,5,8,6,10},             // 8: Complex up
+    {0,-5,-2,-6,-5,-8,-6,-10},      // 9: Complex down
+    {0,6,2,7,6,9,7,11},             // 10: Complex up 2
+    {0,-6,-2,-7,-6,-9,-7,-11},      // 11: Complex down 2
+    {0,4,7,11,4,7,11,12},           // 12: Maj7 chord
+    {0,1,-1,2,-2,3,-3,0},           // 13: Wobble
+    {0,4,7,12,7,4,0,12},            // 14: Major arp palindrome
+    {0,3,7,11,7,3,0,11}             // 15: Minor 7 palindrome
+};
+
+// Arpeggiator state
+static uint8_t arp_step = 0;        // Current step in pattern (0-7)
+static uint32_t arp_counter = 0;    // Sample counter for timing
+static uint8_t arp_note_on = 0;     // Current note state (for gate)
+
 static const uint16_t FREQ[128]={
  8,9,9,10,10,11,12,12,13,14,15,15,16,17,18,19,21,22,23,24,26,28,29,31,33,35,37,39,41,44,46,49,52,55,58,62,
  65,69,73,78,82,87,92,98,104,110,117,123,131,139,147,156,165,175,185,196,208,220,233,247,262,277,294,311,
@@ -669,29 +695,37 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         }
     }
 
-    // ==== DRONE MODE ==== (from original Rockit drone_loop.c)
-    // Continuous note-on with manual pitch/amplitude control:
-    // - ENV_ATTACK knob controls pitch: value>>1 = MIDI note 0-63  (line 83 of drone_loop.c)
-    // - ENV_SUSTAIN knob controls amplitude directly (bypasses envelope) (line 78 of drone_loop.c)
-    // - Keeps note-on flag active continuously
+    // ==== DRONE MODE WITH ARPEGGIATOR ==== (from original Rockit drone_loop.c + arpeggiator.c)
+    // Continuous note-on with manual pitch/amplitude control + arpeggiator patterns:
+    // - ENV_ATTACK knob controls base pitch: value>>1 = MIDI note 0-63
+    // - ENV_DECAY knob controls arpeggiator pattern: 0-15 (16 patterns)
+    // - ENV_SUSTAIN knob controls amplitude directly (bypasses envelope)
+    // - ENV_RELEASE knob controls arpeggiator speed
     static uint8_t prev_drone_mode = 0;
-    static uint8_t drone_triggered = 0;
-    static uint8_t prev_drone_note = 60;
+    static uint8_t prev_arp_pattern = 0;
     uint8_t drone_mode = params_get(P_DRONE_MODE);
 
     if(drone_mode) {
         // Drone mode is active
-        uint8_t drone_note = params_get(P_ENV_ATTACK) >> 1;  // Attack knob >> 1 = MIDI notes 0-63
+        uint8_t base_note = params_get(P_ENV_ATTACK) >> 1;  // Attack knob >> 1 = MIDI notes 0-63
 
-        // On drone mode activation, OR if pitch knob changed, trigger note
-        if(!prev_drone_mode || (drone_note != prev_drone_note)) {
-            rockit_note_on(drone_note);
-            prev_drone_note = drone_note;
-            drone_triggered = 1;
+        // Map decay knob to arpeggiator pattern (0-15)
+        uint8_t arp_pattern = (params_get(P_ENV_DECAY) * 15) / 127;
+        params_set(P_ARP_PATTERN, arp_pattern);
+
+        // Map release knob to arpeggiator speed (inverted: higher knob = faster)
+        uint8_t arp_speed = 255 - params_get(P_ENV_RELEASE);
+        params_set(P_ARP_SPEED, arp_speed);
+
+        // Reset arpeggiator when drone mode activates or pattern changes
+        if(!prev_drone_mode || (arp_pattern != prev_arp_pattern)) {
+            arp_step = 0;
+            arp_counter = 0;
+            arp_note_on = 0;
         }
+        prev_arp_pattern = arp_pattern;
 
         // Bypass envelope: force all active voices to full sustain with level from sustain knob
-        // This matches original Rockit's uc_adsr_multiplier behavior (amp_adsr.c line 52)
         int16_t drone_amp = params_get(P_ENV_SUSTAIN);  // 0-127
         int16_t drone_amp_q = (drone_amp * 32767) / 127;
 
@@ -703,16 +737,19 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
                 V[v].env = ENV_SUSTAIN;
             }
         }
+
+        // Store base note for arpeggiator (will be used in per-sample loop below)
+        (void)base_note;  // Note stored for use in sample loop
     } else {
         // Drone mode deactivated
-        if(prev_drone_mode && drone_triggered) {
+        if(prev_drone_mode) {
             // Release all voices when leaving drone mode
             for(int v=0; v<3; v++){
                 if(V[v].active){
                     V[v].env = ENV_RELEASE;
                 }
             }
-            drone_triggered = 0;
+            arp_note_on = 0;
         }
     }
     prev_drone_mode = drone_mode;
@@ -785,7 +822,51 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         // Tick LFO phase accumulators
         L1.ph += L1.inc;
         L2.ph += L2.inc;
-        
+
+        // ==== ARPEGGIATOR (Drone Mode Only) ====
+        if(drone_mode) {
+            uint8_t base_note = params_get(P_ENV_ATTACK) >> 1;  // Base note from attack knob
+            uint8_t pattern = params_get(P_ARP_PATTERN) & 0x0F; // 0-15
+            uint8_t speed = params_get(P_ARP_SPEED);
+            uint8_t length = params_get(P_ARP_LENGTH);
+            if(length < 1) length = 1;
+            if(length > 8) length = 8;
+            uint8_t gate = params_get(P_ARP_GATE);
+
+            // Calculate step timing (samples per step)
+            // Speed 0 = slowest, 127 = fastest
+            // Map to reasonable range: ~20Hz (2400 samples @ 48kHz) to ~1Hz (48000 samples)
+            uint32_t step_length = 48000 - (speed * 360);  // Approx range
+            uint32_t gate_length = (step_length * gate) / 127;
+
+            arp_counter++;
+
+            // Gate off time
+            if(arp_note_on && arp_counter >= gate_length) {
+                rockit_note_off(base_note + ARP_PATTERNS[pattern][arp_step]);
+                arp_note_on = 0;
+            }
+
+            // Advance to next step
+            if(arp_counter >= step_length) {
+                // Move to next step
+                arp_step++;
+                if(arp_step >= length) {
+                    arp_step = 0;
+                }
+
+                // Calculate note with pattern offset (clamped to MIDI range)
+                int16_t note_with_offset = base_note + ARP_PATTERNS[pattern][arp_step];
+                if(note_with_offset < 0) note_with_offset = 0;
+                if(note_with_offset > 127) note_with_offset = 127;
+
+                // Trigger note
+                rockit_note_on((uint8_t)note_with_offset);
+                arp_note_on = 1;
+                arp_counter = 0;
+            }
+        }
+
         // Voice summing with proper scaling
         int32_t mix = 0;
         int active_voices = 0;
