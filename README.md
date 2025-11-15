@@ -85,7 +85,7 @@ The web UI sends HTTP requests to port 8090, which the MIDI bridge converts to r
 
 ### Performance Notes
 
-**v1.1 Improvements:**
+**v1.01 Improvements:**
 - **C MIDI Bridge**: Replaced Python HTTP server with lightweight C implementation
   - Eliminates Python interpreter overhead on embedded MIPS
   - ~10-100x faster HTTP request handling
@@ -200,9 +200,9 @@ This version includes critical fixes from the original port attempt:
 3. **16 Waveform Support** - Added all waveforms from original Rockit 1.13
 4. **params_init() Bug** - Added missing initialization call (was causing zero volume)
 
-## Fixes Applied (v1.1)
+## Fixes Applied (v1.01)
 
-Additional stability and performance improvements:
+Stability and performance improvements:
 
 1. **C MIDI Bridge** - Replaced Python HTTP server with lightweight C implementation
    - Eliminates Python interpreter bottleneck on embedded MIPS
@@ -273,6 +273,6 @@ For questions about the original Rockit firmware, see http://hackmelectronics.co
 
 ---
 
-**Status**: ✅ Working (v1.1 - 2025-11-15)
+**Status**: ✅ Working (v1.01 - 2025-11-15)
 **Tested On**: ReSpeaker Core v1.0 (MT7688) with OpenWrt Chaos Calmer
-**Key Improvements**: C MIDI bridge for slider stability, startup noise fix, patch storage, arpeggiator
+**Recent Fixes**: C MIDI bridge for slider stability, startup noise resolved

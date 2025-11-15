@@ -325,6 +325,6 @@ top
 ---
 
 **Last Updated**: 2025-11-15
-**Version**: v1.1 (with C MIDI bridge and stability fixes)
+**Version**: v1.01 (with C MIDI bridge and stability fixes)
 **Tested On**: ReSpeaker Core v1.0 (MT7688)
 **Toolchain**: OpenWrt SDK 15.05.1 / GCC 4.8.3 / uClibc 0.9.33.2
