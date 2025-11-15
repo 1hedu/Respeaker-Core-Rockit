@@ -60,59 +60,206 @@ static inline uint8_t blend_mipmaps(const uint8_t table[][256], uint8_t mipmap, 
     return table[mipmap][phase_idx];
 }
 
-// Wavetable sampling with anti-aliasing
-static inline int16_t wavetable_sample(uint32_t phase, wave_t w, uint8_t midi_note){
+// Wavetable sampling with TIME-VARYING MORPHING (matches original Rockit firmware)
+// morph: pointer to per-voice morph state (updated each sample for time-varying behavior)
+// env_state: current envelope state for MORPH_9
+static inline int16_t wavetable_sample(uint32_t phase, wave_t w, uint8_t midi_note, morph_state_t *morph, env_t env_state){
     uint8_t blend_pos;
     uint8_t mipmap = get_mipmap_index(midi_note, &blend_pos);
     uint8_t i = (uint8_t)(phase >> 24);
     uint8_t sample_u8;
-    
+    uint16_t temp16;
+    int16_t stemp;
+
     if(mipmap > 31) mipmap = 31;
-    
+
     switch(w){
         case W_SINE:
             sample_u8 = G_AUC_SIN_LUT[i];
             break;
-        case W_TRI:
-            sample_u8 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i);
-            break;
-        case W_SAW:
-            sample_u8 = blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i);
-            break;
+
         case W_SQUARE:
             sample_u8 = blend_mipmaps(G_AUC_SQUARE_WAVETABLE_LUT, mipmap, blend_pos, i);
             break;
-        case W_MORPH1:  // Square/Saw morphing
-            sample_u8 = blend_mipmaps(G_AUC_PARABOLIC_WAVETABLE_LUT, mipmap, blend_pos, i);
-            break;
-        case W_MORPH2:  // Triangle/Saw morphing
-        case W_MORPH3:  // Triangle/Square morphing
-        case W_MORPH8:  // Complex envelope-based
-        case W_MORPH9:  // Complex envelope-based
-            sample_u8 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i);
-            break;
-        case W_MORPH4:  // Square with phasing pulse width
-        case W_MORPH5:  // Sin modulated square
-        case W_MORPH7:  // Slow square phasing pulse width
-            sample_u8 = blend_mipmaps(G_AUC_SQUARE_WAVETABLE_LUT, mipmap, blend_pos, i);
-            break;
-        case W_MORPH6:  // Ramp modulate square
+
+        case W_SAW:
             sample_u8 = blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i);
             break;
+
+        case W_TRI:
+            sample_u8 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i);
+            break;
+
+        case W_MORPH1:  // Square morphing with inverted ramp (offset 180°)
+            if(morph->morph_timer == 0) {
+                morph->morph_index++;
+                morph->morph_timer = 15;  // MORPH_1_TIME_PERIOD
+            }
+            morph->morph_timer--;
+
+            temp16 = blend_mipmaps(G_AUC_SQUARE_WAVETABLE_LUT, mipmap, blend_pos, i) * morph->morph_index;
+            temp16 += blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i + 127)) * (255 - morph->morph_index);
+            sample_u8 = temp16 >> 8;
+            break;
+
+        case W_MORPH2:  // Triangle with phase-shifting ramp
+            if(morph->morph_timer == 0) {
+                morph->morph_index++;
+                morph->morph_timer = 10;  // MORPH_2_TIME_PERIOD
+            }
+            morph->morph_timer--;
+
+            if(morph->phase_shift_timer == 0) {
+                morph->phase_shifter++;
+                morph->phase_shift_timer = 50;  // PHASE_SHIFT_TIMER_2
+            }
+            morph->phase_shift_timer--;
+
+            temp16 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i) * morph->morph_index;
+            temp16 += blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i + morph->phase_shifter)) * (255 - morph->morph_index);
+            sample_u8 = temp16 >> 8;
+            break;
+
+        case W_MORPH3:  // Triangle minus reversed square (phase difference)
+            if(morph->morph_timer == 0) {
+                morph->morph_index++;
+                morph->morph_timer = 50;
+            }
+            morph->morph_timer--;
+
+            stemp = (int16_t)blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                    (int16_t)blend_mipmaps(G_AUC_SQUARE_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - morph->morph_index));
+            sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+            break;
+
+        case W_MORPH4:  // Sawtooth minus reversed sawtooth (bidirectional morph)
+            if(morph->morph_timer == 0) {
+                if(morph->morph_state == 0) {
+                    morph->morph_index++;
+                    if(morph->morph_index == 255) morph->morph_state = 1;
+                } else {
+                    morph->morph_index--;
+                    if(morph->morph_index == 0) morph->morph_state = 0;
+                }
+                morph->morph_timer = 250;
+            }
+            morph->morph_timer--;
+
+            stemp = (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                    (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - morph->morph_index));
+            sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+            break;
+
+        case W_MORPH5:  // Enveloped sine followed by enveloped square
+        case W_MORPH6:  // Enveloped ramp followed by enveloped square
+            if(morph->morph_timer == 0) {
+                morph->morph_index_16++;
+                morph->morph_timer = (w == W_MORPH5) ? 10 : 50;
+            }
+            morph->morph_timer--;
+
+            if(morph->morph_index_16 == 383) morph->morph_index_16 = 0;
+
+            temp16 = 0;
+            if(morph->morph_index_16 < 255) {
+                uint8_t base = (w == W_MORPH5) ? G_AUC_SIN_LUT[i] : blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i);
+                temp16 = (base * blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, morph->morph_index_16 & 0xFF)) >> 8;
+            }
+            if(morph->morph_index_16 > 128 && morph->morph_index_16 < 383) {
+                uint8_t idx = morph->morph_index_16 - 128;
+                temp16 += (blend_mipmaps(G_AUC_SQUARE_WAVETABLE_LUT, mipmap, blend_pos, i) * (255 - G_AUC_SIN_LUT[idx])) >> 8;
+            }
+            sample_u8 = (temp16 >> 1) & 0xFF;
+            break;
+
+        case W_MORPH7:  // Variable pulse width square (PWM)
+            if(morph->morph_timer == 0) {
+                morph->morph_index++;
+                morph->morph_timer = 25;
+            }
+            morph->morph_timer--;
+
+            stemp = (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                    (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - morph->morph_index));
+            sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+            break;
+
+        case W_MORPH8:  // Triangle→Noise→Narrowing pulse sequence
+            if(morph->morph_timer == 0) {
+                morph->morph_index++;
+                morph->morph_timer = 5;
+            }
+            morph->morph_timer--;
+
+            switch(morph->morph_state) {
+                case 0:  // Triangle for ~20ms
+                    sample_u8 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i);
+                    if(morph->morph_index == 255) morph->morph_state = 1;
+                    break;
+                case 1:  // Noise for ~20ms
+                    if((i & 0x0F) == 0) {
+                        uint16_t bit = ((morph->lfsr >> 15) ^ (morph->lfsr >> 13) ^ (morph->lfsr >> 12) ^ (morph->lfsr >> 10)) & 1;
+                        morph->lfsr = (morph->lfsr << 1) | bit;
+                    }
+                    sample_u8 = morph->lfsr & 0xFF;
+                    if(morph->morph_index == 255) morph->morph_state = 2;
+                    break;
+                case 2:  // Narrowing pulse
+                case 3:  // Hold narrow pulse
+                    stemp = (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                            (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - morph->morph_index));
+                    sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+                    if(morph->morph_state == 2 && morph->morph_index == 255) morph->morph_state = 3;
+                    break;
+                default:
+                    sample_u8 = 128;
+            }
+            break;
+
+        case W_MORPH9:  // Envelope-following waveform
+            switch(env_state) {
+                case ENV_ATTACK:
+                    sample_u8 = blend_mipmaps(G_AUC_TRIANGLE_WAVETABLE_LUT, mipmap, blend_pos, i);
+                    break;
+                case ENV_DECAY:
+                case ENV_SUSTAIN:
+                    stemp = (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                            (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - 127));
+                    sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+                    break;
+                default:  // Release
+                    if(morph->morph_timer == 0) {
+                        morph->morph_index++;
+                        morph->morph_timer = 10;
+                    }
+                    morph->morph_timer--;
+                    stemp = (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, i) -
+                            (int16_t)blend_mipmaps(G_AUC_RAMP_WAVETABLE_LUT, mipmap, blend_pos, (uint8_t)(i - morph->morph_index));
+                    sample_u8 = (stemp > 127) ? 255 : ((stemp < -128) ? 0 : (128 + stemp));
+            }
+            break;
+
         case W_HARDSYNC:  // Hard sync
-            sample_u8 = G_AUC_HARDSYNC_1_SIMPLE_WAVETABLE_LUT[i>>1];
+            sample_u8 = blend_mipmaps(G_AUC_HARDSYNC_2_WAVETABLE_LUT, mipmap >> 1, 0, i >> 1);
             break;
-        case W_NOISE:
-            sample_u8 = (phase >> 16) ^ (phase >> 8);  // Simple noise
+
+        case W_NOISE:  // LFSR-based pseudo-random noise
+            if((i & 0x0F) == 0) {
+                uint16_t bit = ((morph->lfsr >> 15) ^ (morph->lfsr >> 13) ^ (morph->lfsr >> 12) ^ (morph->lfsr >> 10)) & 1;
+                morph->lfsr = (morph->lfsr << 1) | bit;
+            }
+            sample_u8 = morph->lfsr & 0xFF;
             break;
+
         case W_RAW_SQUARE:  // Raw aliasing square
             sample_u8 = (i < 128) ? 255 : 0;
             break;
+
         default:
             sample_u8 = G_AUC_SIN_LUT[i];
             break;
     }
-    
+
     return ((int16_t)sample_u8 - 128) << 7;
 }
 
@@ -174,6 +321,17 @@ static inline int16_t lfo_wave(uint32_t ph, uint8_t shape){
 
 typedef enum { ENV_IDLE=0, ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE } env_t;
 
+// Per-voice morph state for time-varying waveforms (matches original Rockit)
+typedef struct {
+    uint8_t morph_timer;        // Sample counter for morph speed
+    uint8_t morph_index;        // 0-255 morph position
+    uint16_t morph_index_16;    // 0-65535 for longer morph cycles
+    uint8_t morph_state;        // State machine for complex morphs (MORPH_8, MORPH_4)
+    uint8_t phase_shifter;      // Phase offset for MORPH_2
+    uint8_t phase_shift_timer;  // Timer for phase shifting
+    uint16_t lfsr;              // Per-voice LFSR for noise
+} morph_state_t;
+
 typedef struct {
     uint8_t active;
     uint8_t note;
@@ -183,6 +341,7 @@ typedef struct {
     uint32_t t, atk, dec, rel;
     int16_t sus_q;
     uint32_t inc_target, inc_cur;
+    morph_state_t morph1, morph2;  // Separate morph state for OSC1 and OSC2
 } voice_state_t;
 
 static voice_state_t V[3];
@@ -263,6 +422,12 @@ static void voice_trigger(voice_state_t *v, uint8_t note, int sr){
     v->dec = ms_to_samples(d_ms, sr);
     v->rel = ms_to_samples(r_ms, sr);
     v->sus_q = ((int16_t)params_get(P_ENV_SUSTAIN)*32767)/127;
+
+    // Initialize morph state for time-varying waveforms
+    // Seed LFSR with unique value per voice (avoid all voices having same noise)
+    v->morph1.lfsr = 0xACE1 + (note << 8);
+    v->morph2.lfsr = 0x5EED + (note << 8);
+    // Don't reset other morph state - let it continue for smooth morphing across notes
 }
 
 static void voice_release(voice_state_t *v){
@@ -311,18 +476,19 @@ static int16_t voice_tick(voice_state_t *v, int sr, int tune){
         v->inc2 = v->inc_cur;
     }
     
-    // Oscillators with anti-aliasing
+    // Oscillators with anti-aliasing and TIME-VARYING MORPHING
     wave_t w1 = (wave_t)params_get(P_OSC1_WAVE);
     wave_t w2 = (wave_t)params_get(P_OSC2_WAVE);
     if(w1 > 15) w1 = W_SINE;
     if(w2 > 15) w2 = W_SINE;
-    
-    int16_t s1 = wavetable_sample(v->ph1, w1, v->note);
-    int16_t s2 = wavetable_sample(v->ph2, w2, v->note);
-    
+
+    // Pass morph state pointers for time-varying waveforms, and envelope state for MORPH_9
+    int16_t s1 = wavetable_sample(v->ph1, w1, v->note, &v->morph1, v->env);
+    int16_t s2 = wavetable_sample(v->ph2, w2, v->note, &v->morph2, v->env);
+
     int mix = params_get(P_OSC_MIX);
     int32_t osc = ((127-mix)*s1 + mix*s2) / 127;
-    
+
     v->ph1 += v->inc1;
     v->ph2 += v->inc2;
     
