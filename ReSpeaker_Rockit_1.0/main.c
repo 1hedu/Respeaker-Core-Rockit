@@ -253,14 +253,6 @@ int main(int argc,char**argv){
     fprintf(stderr,"Tip: use 'hw:0,0' for 1/4\" line out if default doesn't work\n\n");
     
     fprintf(stderr,"Starting audio engine...\n");
-
-    // Prime ALSA buffer with silence to prevent startup noise
-    // Write a few periods of zeros to clear any hardware buffer garbage
-    for(int prime = 0; prime < 4; prime++) {
-        snd_pcm_sframes_t w = snd_pcm_writei(h, buf, per);
-        if(w < 0) snd_pcm_prepare(h);
-    }
-
     fprintf(stderr,"Type 'HELP' for commands. Notes stay on until you turn them OFF!\n\n");
 
     while(run){
