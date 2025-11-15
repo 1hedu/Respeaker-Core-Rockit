@@ -616,31 +616,38 @@ void rockit_engine_render(rockit_engine_t *e, int16_t *out, size_t frames, int s
         }
     }
 
-    // ==== DRONE MODE ====
-    // Continuous note-on with manual pitch/amplitude control (from original Rockit)
-    // - ENV_ATTACK controls pitch (0-127 = MIDI notes 0-127)
-    // - ENV_SUSTAIN controls amplitude (envelope forced to sustain level)
+    // ==== DRONE MODE ==== (from original Rockit drone_loop.c)
+    // Continuous note-on with manual pitch/amplitude control:
+    // - ENV_ATTACK knob controls pitch: value>>1 = MIDI note 0-63  (line 83 of drone_loop.c)
+    // - ENV_SUSTAIN knob controls amplitude directly (bypasses envelope) (line 78 of drone_loop.c)
+    // - Keeps note-on flag active continuously
     static uint8_t prev_drone_mode = 0;
     static uint8_t drone_triggered = 0;
+    static uint8_t prev_drone_note = 60;
     uint8_t drone_mode = params_get(P_DRONE_MODE);
 
     if(drone_mode) {
         // Drone mode is active
-        uint8_t drone_note = params_get(P_ENV_ATTACK);  // Use attack knob for pitch (0-127)
+        uint8_t drone_note = params_get(P_ENV_ATTACK) >> 1;  // Attack knob >> 1 = MIDI notes 0-63
 
-        // On drone mode activation, trigger a note
-        if(!prev_drone_mode) {
+        // On drone mode activation, OR if pitch knob changed, trigger note
+        if(!prev_drone_mode || (drone_note != prev_drone_note)) {
             rockit_note_on(drone_note);
+            prev_drone_note = drone_note;
             drone_triggered = 1;
         }
 
-        // Keep the drone playing by forcing envelope to sustain state
-        // The sustain level is already controlled by ENV_SUSTAIN parameter above
+        // Bypass envelope: force all active voices to full sustain with level from sustain knob
+        // This matches original Rockit's uc_adsr_multiplier behavior (amp_adsr.c line 52)
+        int16_t drone_amp = params_get(P_ENV_SUSTAIN);  // 0-127
+        int16_t drone_amp_q = (drone_amp * 32767) / 127;
+
         for(int v=0; v<3; v++){
             if(V[v].active){
-                // Force envelope to sustain state for continuous sound
+                // Bypass envelope entirely - set amplitude directly
+                V[v].env_q = drone_amp_q;
+                // Keep in sustain state so it doesn't progress through envelope
                 V[v].env = ENV_SUSTAIN;
-                // Sustain level is already set from sus_q above
             }
         }
     } else {
