@@ -1,0 +1,23 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.so.*
+*.elf
+*.bin
+*.hex
+
+# Executables
+respeaker_rockit
+test_audio_gen
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
