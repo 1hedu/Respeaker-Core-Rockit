@@ -258,10 +258,43 @@ int main(int argc,char**argv){
     snd_pcm_drop(h);      // Drop any pending frames from previous session
     snd_pcm_prepare(h);   // Prepare for new audio stream
 
+    // DEBUG: Print initial parameter state
+    fprintf(stderr,"\n=== DEBUG: Initial Parameter State ===\n");
+    fprintf(stderr,"Master Vol: %d\n", params_get(P_MASTER_VOL));
+    fprintf(stderr,"Filter Cutoff: %d\n", params_get(P_FILTER_CUTOFF));
+    fprintf(stderr,"Filter Resonance: %d\n", params_get(P_FILTER_RESONANCE));
+    fprintf(stderr,"Filter Mode: %d\n", params_get(P_FILTER_MODE));
+    fprintf(stderr,"OSC1 Wave: %d\n", params_get(P_OSC1_WAVE));
+    fprintf(stderr,"OSC2 Wave: %d\n", params_get(P_OSC2_WAVE));
+    fprintf(stderr,"OSC Mix: %d\n", params_get(P_OSC_MIX));
+    fprintf(stderr,"Tune: %d\n", params_get(P_TUNE));
+    fprintf(stderr,"Drone Mode: %d\n", params_get(P_DRONE_MODE));
+    fprintf(stderr,"LFO1 Depth: %d\n", params_get(P_LFO1_DEPTH));
+    fprintf(stderr,"LFO2 Depth: %d\n", params_get(P_LFO2_DEPTH));
+    fprintf(stderr,"Env Attack: %d, Decay: %d, Sustain: %d, Release: %d\n",
+        params_get(P_ENV_ATTACK), params_get(P_ENV_DECAY),
+        params_get(P_ENV_SUSTAIN), params_get(P_ENV_RELEASE));
+    fprintf(stderr,"=====================================\n\n");
+
     fprintf(stderr,"Type 'HELP' for commands. Notes stay on until you turn them OFF!\n\n");
 
+    int debug_frame_count = 0;
     while(run){
         rockit_engine_render(&e, buf, per, rate);
+
+        // DEBUG: Print first few samples to see if audio is being generated
+        if(debug_frame_count < 3) {
+            int16_t max_sample = 0;
+            for(size_t i = 0; i < per * 2; i++) {
+                if(buf[i] > max_sample || buf[i] < -max_sample) {
+                    max_sample = buf[i] > 0 ? buf[i] : -buf[i];
+                }
+            }
+            fprintf(stderr,"DEBUG Frame %d: Max sample amplitude = %d (out of 32767)\n",
+                    debug_frame_count, max_sample);
+            debug_frame_count++;
+        }
+
         snd_pcm_sframes_t w = snd_pcm_writei(h, buf, per);
         if(w<0) snd_pcm_prepare(h);
         
