@@ -1,0 +1,278 @@
+root@ReSpeaker:~/diagnostics# ash capture_noise_test.sh
+════════════════════════════════════════════════════════════════
+  Microphone Noise Investigation
+  Sun Nov 16 00:25:00 UTC 2025
+════════════════════════════════════════════════════════════════
+
+Output directory: ./noise_test_20251116_002500
+
+▶ INITIAL STATE
+────────────────────────────────────────────────────────────────
+
+Taking mixer snapshot: 01_initial
+  Saved: ./noise_test_20251116_002500/mixer_01_initial.txt
+Capture device status:
+state: RUNNING
+owner_pid   : 1873
+trigger_time: 109.040288760
+tstamp      : 7973.440593478
+delay       : 0
+avail       : 0
+avail_max   : 0
+-----
+hw_ptr      : 125829120
+appl_ptr    : 125829120
+
+
+▶ TEST 1: Capture Level Sweep
+────────────────────────────────────────────────────────────────
+
+Testing if capture volume affects the noise...
+
+grep: invalid option -- P
+BusyBox v1.23.2 (2016-11-18 16:23:25 CST) multi-call binary.
+
+Usage: grep [-HhnlLoqvsriwFE] [-m N] [-A/B/C N] PATTERN/-e PATTERN.../-f FILE [FILE]...
+
+Search for PATTERN in FILEs (or stdin)
+
+        -H      Add 'filename:' prefix
+        -h      Do not add 'filename:' prefix
+        -n      Add 'line_no:' prefix
+        -l      Show only names of files that match
+        -L      Show only names of files that don't match
+        -c      Show only count of matching lines
+        -o      Show only the matching part of line
+        -q      Quiet. Return 0 if PATTERN is found, 1 otherwise
+        -v      Select non-matching lines
+        -s      Suppress open and read errors
+        -r      Recurse
+        -i      Ignore case
+        -w      Match whole words only
+        -x      Match whole lines only
+        -F      PATTERN is a literal (not regexp)
+        -E      PATTERN is an extended regexp
+        -m N    Match up to N times per file
+        -A N    Print N lines of trailing context
+        -B N    Print N lines of leading context
+        -C N    Same as '-A N -B N'
+        -e PTRN Pattern to match
+        -f FILE Read pattern from file
+
+Initial capture volume: %
+
+Setting capture to 0%...
+Simple mixer control 'Capture',0
+  Capabilities: cvolume cswitch
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 63
+  Front Left: Capture 0 [0%] [-97.00dB] [off]
+  Front Right: Capture 0 [0%] [-97.00dB] [off]
+Taking mixer snapshot: 02_capture_0pct
+  Saved: ./noise_test_20251116_002500/mixer_02_capture_0pct.txt
+
+Is the noise gone at 0% capture? (y/n) ^C
+root@ReSpeaker:~/diagnostics# ps
+  PID USER       VSZ STAT COMMAND
+    1 root      1440 S    /sbin/procd
+    2 root         0 SW   [kthreadd]
+    3 root         0 SW   [ksoftirqd/0]
+    5 root         0 SW<  [kworker/0:0H]
+    6 root         0 SW   [kworker/u2:0]
+    7 root         0 SW<  [khelper]
+    8 root         0 SW   [kworker/u2:1]
+   69 root         0 SW<  [writeback]
+   71 root         0 SW<  [bioset]
+   73 root         0 SW<  [kblockd]
+   76 root         0 SW   [kswapd0]
+   77 root         0 SW   [kworker/0:1]
+   78 root         0 SW   [fsnotify_mark]
+   80 root         0 SW   [spi32766]
+  230 root         0 SW<  [deferwq]
+  365 root         0 SWN  [jffs2_gcd_mtd6]
+  510 root       904 S    /sbin/ubusd
+  561 root       768 S    /sbin/askfirst /bin/ash --login
+ 1014 root         0 SW<  [ipv6_addrconf]
+ 1029 root         0 SW<  [cifsiod]
+ 1043 root         0 SW<  [rpciod]
+ 1067 root         0 SW<  [nfsiod]
+ 1265 root      1056 S    /sbin/logd -S 16
+ 1283 root      1820 S    /sbin/rpcd
+ 1316 root      1608 S    /sbin/netifd
+ 1341 root      1192 S    /usr/sbin/odhcpd
+ 1350 root         0 SW   [kworker/0:3]
+ 1385 root      1548 S    {ralink.sh} /bin/sh ./ralink.sh ralink setup radio0 {"config":{"variant":"mt7628","country":"TW","hwmod
+ 1422 root       804 S    odhcp6c -s /lib/netifd/dhcpv6.script -P0 -t120 eth0.2
+ 1426 root         0 SW   [RtmpCmdQTask]
+ 1427 root         0 SW   [RtmpWscTask]
+ 1428 root         0 SW   [RtmpMlmeTask]
+ 1454 root      4000 S    /usr/sbin/lighttpd -f /etc/lighttpd.conf
+ 1461 root      3700 S    /usr/sbin/sshd -D
+ 1494 root      1736 S    /usr/sbin/dbus-daemon --system
+ 1517 root     34332 S    /usr/bin/orangerpcd -p /usr/lib/orange/api/
+ 1522 root      3088 S    /usr/sbin/smbd -F
+ 1523 root      3180 S    /usr/sbin/nmbd -F
+ 1530 nobody    2180 S    avahi-daemon: running [ReSpeaker.local]
+ 1577 root     33104 S    fasterconfig
+ 1579 root      1484 S    udhcpc -p /var/run/udhcpc-apcli0.pid -s /lib/netifd/dhcp.script -f -t 0 -i apcli0 -C
+ 1603 root      1036 S    apClient ra0 apcli0 ba1893m3nt TC8717TF060FF WPA2PSK mediatek:orange:wifi
+ 1607 root     67808 S    python /usr/bin/mopidy --config /root/.config/mopidy/mopidy.conf
+ 1617 root      1012 S    /sbin/mountd -f
+ 1659 upmpdcli 21100 S    /usr/bin/upmpdcli -i br-lan
+ 1704 root      1488 S    /usr/sbin/ntpd -n -S /usr/sbin/ntpd-hotplug -p 0.openwrt.pool.ntp.org -p 1.openwrt.pool.ntp.org -p 2.op
+ 1709 root      1488 S    {sd_daemon.sh} /bin/sh /root/sd_daemon.sh
+ 1731 root      7076 S    /usr/bin/shairport-sync -a ReSpeaker
+ 1751 root      3688 S    /usr/bin/ttyd ssh localhost
+ 2030 nobody     992 S    /usr/sbin/dnsmasq -C /var/etc/dnsmasq.conf -k -x /var/run/dnsmasq/dnsmasq.pid
+ 2163 root      7044 S    sshd: root@pts/2
+ 2166 root      1488 S    -ash
+ 4679 root      7060 R    sshd: root@pts/0
+ 4682 root      1488 S    -ash
+ 5891 root      1476 S    sleep 3
+ 5892 root      1484 R    ps
+root@ReSpeaker:~/diagnostics# ps | grep python
+ 1607 root     67808 S    python /usr/bin/mopidy --config /root/.config/mopidy/mopidy.conf
+ 5899 root      1480 S    grep python
+root@ReSpeaker:~/diagnostics# ash capture_noise_test.sh
+════════════════════════════════════════════════════════════════
+  Microphone Noise Investigation
+  Sun Nov 16 00:30:58 UTC 2025
+════════════════════════════════════════════════════════════════
+
+Output directory: ./noise_test_20251116_003058
+
+▶ INITIAL STATE
+────────────────────────────────────────────────────────────────
+
+Taking mixer snapshot: 01_initial
+  Saved: ./noise_test_20251116_003058/mixer_01_initial.txt
+Capture device status:
+state: RUNNING
+owner_pid   : 1873
+trigger_time: 109.040288760
+tstamp      : 8331.525909878
+delay       : 0
+avail       : 0
+avail_max   : 0
+-----
+hw_ptr      : 131558400
+appl_ptr    : 131558400
+
+
+▶ TEST 1: Capture Level Sweep
+────────────────────────────────────────────────────────────────
+
+Testing if capture volume affects the noise...
+
+grep: invalid option -- P
+BusyBox v1.23.2 (2016-11-18 16:23:25 CST) multi-call binary.
+
+Usage: grep [-HhnlLoqvsriwFE] [-m N] [-A/B/C N] PATTERN/-e PATTERN.../-f FILE [FILE]...
+
+Search for PATTERN in FILEs (or stdin)
+
+        -H      Add 'filename:' prefix
+        -h      Do not add 'filename:' prefix
+        -n      Add 'line_no:' prefix
+        -l      Show only names of files that match
+        -L      Show only names of files that don't match
+        -c      Show only count of matching lines
+        -o      Show only the matching part of line
+        -q      Quiet. Return 0 if PATTERN is found, 1 otherwise
+        -v      Select non-matching lines
+        -s      Suppress open and read errors
+        -r      Recurse
+        -i      Ignore case
+        -w      Match whole words only
+        -x      Match whole lines only
+        -F      PATTERN is a literal (not regexp)
+        -E      PATTERN is an extended regexp
+        -m N    Match up to N times per file
+        -A N    Print N lines of trailing context
+        -B N    Print N lines of leading context
+        -C N    Same as '-A N -B N'
+        -e PTRN Pattern to match
+        -f FILE Read pattern from file
+
+Initial capture volume: %
+
+Setting capture to 0%...
+Simple mixer control 'Capture',0
+  Capabilities: cvolume cswitch
+  Capture channels: Front Left - Front Right
+  Limits: Capture 0 - 63
+  Front Left: Capture 0 [0%] [-97.00dB] [off]
+  Front Right: Capture 0 [0%] [-97.00dB] [off]
+Taking mixer snapshot: 02_capture_0pct
+  Saved: ./noise_test_20251116_003058/mixer_02_capture_0pct.txt
+
+Is the noise gone at 0% capture? (y/n) n
+
+
+▶ TEST 2: Mopidy Interaction
+────────────────────────────────────────────────────────────────
+
+Is Mopidy RUNNING now? (y/n) y
+ash: =~: unknown operand
+Skipping Mopidy test - Mopidy not running
+
+▶ TEST 3: Headphone Control Investigation
+────────────────────────────────────────────────────────────────
+
+Mopidy uses 'Headphone' control. Let's test it directly...
+
+Current Headphone state:
+Simple mixer control 'Headphone',0
+  Capabilities: pvolume
+  Playback channels: Front Left - Front Right
+  Limits: Playback 0 - 127
+  Mono:
+  Front Left: Playback 127 [100%] [6.00dB]
+  Front Right: Playback 127 [100%] [6.00dB]
+
+Try toggling Headphone mute? (y/n) y
+ash: =~: unknown operand
+▶ TEST 4: Looking for Loopback/Monitor Controls
+────────────────────────────────────────────────────────────────
+
+Searching for loopback-related controls...
+All controls saved to: ./noise_test_20251116_003058/all_controls.txt
+
+Potentially relevant controls:
+Simple mixer control 'Left Output Mixer Boost Bypass',0
+Simple mixer control 'Right Output Mixer Boost Bypass',0
+
+Checking common WM8960 loopback controls...
+  Found: Left Input Mixer Boost
+Simple mixer control 'Left Input Mixer Boost',0
+  Capabilities: pswitch pswitch-joined
+  Playback channels: Mono
+  Mono: Playback [on]
+
+  Found: Right Input Mixer Boost
+Simple mixer control 'Right Input Mixer Boost',0
+  Capabilities: pswitch pswitch-joined
+  Playback channels: Mono
+  Mono: Playback [on]
+
+▶ FINAL STATE
+────────────────────────────────────────────────────────────────
+
+Taking mixer snapshot: 99_final
+  Saved: ./noise_test_20251116_003058/mixer_99_final.txt
+
+════════════════════════════════════════════════════════════════
+  TEST COMPLETE
+════════════════════════════════════════════════════════════════
+
+Results saved to: ./noise_test_20251116_003058
+
+Files created:
+-rw-r--r--    1 root     root        2.0K Nov 16 00:31 all_controls.txt
+-rw-r--r--    1 root     root        7.9K Nov 16 00:30 mixer_01_initial.txt
+-rw-r--r--    1 root     root        7.9K Nov 16 00:31 mixer_02_capture_0pct.txt
+-rw-r--r--    1 root     root        7.9K Nov 16 00:31 mixer_99_final.txt
+-rw-r--r--    1 root     root          12 Nov 16 00:31 noise_at_zero.txt
+
+Summary of findings:
+  1. Noise at 0% capture: Response: n
