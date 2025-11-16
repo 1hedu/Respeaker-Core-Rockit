@@ -27,7 +27,7 @@ Mopidy starts → Claims BOTH "Headphone" AND microphone
 On your ReSpeaker device:
 
 ```bash
-cd /root/Respeaker-Core-Rockit/mopidy_rockit_voice
+cd /root/Respeaker-Core-Rockit/Mopidy-Rockit-Voice
 python setup.py install
 
 # Or for development (changes reflected without reinstall):
@@ -183,6 +183,8 @@ Want to add more voice commands? Edit `mopidy_rockit_voice/__init__.py`:
 
 ### Example: Add "bass boost" command
 
+Edit `Mopidy-Rockit-Voice/mopidy_rockit_voice/__init__.py`:
+
 ```python
 # In __init__ method, add to self.commands:
 self.commands = {
@@ -208,7 +210,7 @@ def _cmd_bass_boost(self, text):
 Then reinstall:
 
 ```bash
-cd mopidy_rockit_voice
+cd Mopidy-Rockit-Voice
 python setup.py develop  # If using develop mode
 # Or: python setup.py install
 
