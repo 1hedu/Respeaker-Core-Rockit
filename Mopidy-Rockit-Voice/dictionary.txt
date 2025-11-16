@@ -1,0 +1,57 @@
+# Wake words
+respeaker       R IY S P IY K ER
+alexa           AH L EH K S AH
+
+# Actions
+play            P L EY
+stop            S T AA P
+note            N OW T
+mute            M Y UW T
+
+# Parameters
+cutoff          K AH T AO F
+volume          V AA L Y UW M
+attack          AH T AE K
+decay           D IH K EY
+release         R IH L IY S
+sustain         S AH S T EY N
+resonance       R EH Z AH N AH N S
+glide           G L AY D
+filter          F IH L T ER
+envelope        EH N V AH L OW P
+oscillator      AA S IH L EY T ER
+wave            W EY V
+tune            T UW N
+drone           D R OW N
+mix             M IH K S
+
+# Modifiers
+up              AH P
+down            D AW N
+max             M AE K S
+min             M IH N
+zero            Z IY R OW
+half            HH AE F
+on              AA N
+off             AO F
+
+# Numbers
+one             W AH N
+two             T UW
+three           TH R IY
+four            F AO R
+five            F AY V
+six             S IH K S
+seven           S EH V AH N
+eight           EY T
+nine            N AY N
+ten             T EH N
+
+# Note names (single letters need context)
+c               S IY
+d               D IY
+e               IY
+f               EH F
+g               JH IY
+a               EY
+b               B IY
