@@ -225,11 +225,9 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
             param, modifier, current, new_value, cc_num))
 
     def _play_note(self, note):
-        """Play a note"""
-        logger.info('Playing note {0}'.format(note))
-        self._send_midi([0x90, note, 100])  # Note on
-        time.sleep(0.5)
-        self._send_midi([0x80, note, 0])    # Note off
+        """Play a note - holds until stop command"""
+        logger.info('Playing note {0} (held)'.format(note))
+        self._send_midi([0x90, note, 100])  # Note on - stays on!
 
     def _send_cc(self, cc_num, value):
         """Send MIDI Control Change"""
