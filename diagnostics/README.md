@@ -17,7 +17,67 @@ Based on observations and research:
 - **ReSpeaker library**: Uses PyAudio + PocketSphinx for wake word detection, searches for devices with 'respeaker' in the name
 - **Workaround**: Need to use ALSA dmix for device sharing, or ensure proper device initialization
 
+## Important Notes
+
+**BusyBox Environment**: Some scripts use commands not available in BusyBox (like `fuser`, `ps -a`). New scripts below are BusyBox-compatible.
+
+**About mic_capture_test.sh**: This script records audio samples from the microphone - it does NOT play audio through Mopidy. When it prompts "Press Enter when Mopidy is PLAYING", it means Mopidy should be playing music (to test if recording works while Mopidy uses the audio device). If Mopidy never plays in your setup, use the simpler `capture_noise_test.sh` instead.
+
 ## Diagnostic Tools
+
+### NEW: `capture_noise_test.sh` - Simplified Noise Investigation (BusyBox-compatible)
+
+**Purpose**: Direct, interactive investigation of the microphone noise issue with minimal dependencies.
+
+**What it tests**:
+- **Capture volume hypothesis**: Does setting capture to 0% eliminate noise?
+- **Mopidy interaction**: Takes mixer snapshots before/after Mopidy stop
+- **Headphone control**: Tests if muting the "Headphone" control affects noise
+- **Loopback detection**: Searches for mixer controls that might route mic to output
+
+**Usage**:
+```bash
+cd diagnostics
+chmod +x capture_noise_test.sh
+./capture_noise_test.sh
+```
+
+**Interactive prompts**:
+- Asks if Mopidy is running
+- Prompts you to stop Mopidy and observe noise
+- Tests different mixer settings
+- Records your observations
+
+**Output**: Creates `noise_test_YYYYMMDD_HHMMSS/` with mixer snapshots and diff comparisons
+
+**When to use**: This is the **easiest starting point** for investigation!
+
+---
+
+### NEW: `mopidy_mixer_investigation.sh` - Deep Dive into Mixer Controls (BusyBox-compatible)
+
+**Purpose**: Comprehensive analysis of ALSA mixer controls, focusing on the Mopidy "Headphone" control relationship.
+
+**What it shows**:
+- All ALSA mixer controls (simple and detailed views)
+- Headphone control state (what Mopidy controls)
+- All capture/microphone controls
+- Search for loopback/monitoring paths
+- WM8960 codec-specific information
+- Process check (BusyBox-compatible method)
+
+**Usage**:
+```bash
+cd diagnostics
+chmod +x mopidy_mixer_investigation.sh
+./mopidy_mixer_investigation.sh
+```
+
+**Interactive test**: Optionally takes snapshots before/after you stop Mopidy to show exactly what changed.
+
+**When to use**: When you need detailed information about all available mixer controls and their current states.
+
+---
 
 ### 1. `alsa_state_check.sh` - System State Snapshot
 
@@ -154,6 +214,35 @@ python pyaudio_mic_test.py
 ---
 
 ## Investigation Workflow
+
+### **RECOMMENDED: Quick Start Investigation**
+
+```bash
+cd diagnostics
+
+# Step 1: Run the simplified noise test (easiest!)
+./capture_noise_test.sh
+
+# This will:
+# - Test if capture volume=0 stops the noise (your hypothesis!)
+# - Prompt you to stop Mopidy and observe
+# - Take mixer snapshots to see what changed
+# - Search for loopback controls
+
+# Step 2: If you need more details
+./mopidy_mixer_investigation.sh
+
+# This shows all mixer controls and helps identify
+# what the "Headphone" control (used by Mopidy) does
+```
+
+**What to look for**:
+1. Does noise go away at 0% capture? → Confirms your hypothesis
+2. What mixer values changed when Mopidy stopped? → Check the diff output
+3. Are there loopback/monitor controls? → Might be routing mic to output
+4. Does muting "Headphone" affect noise? → Shows if output affects input
+
+---
 
 ### Scenario 1: Fresh Investigation
 
