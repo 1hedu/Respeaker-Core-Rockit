@@ -63,8 +63,8 @@ echo ""
 echo "Testing if capture volume affects the noise..."
 echo ""
 
-# Get current capture volume
-INITIAL_VOL=$(amixer -c "$CARD" sget Capture 2>/dev/null | grep -oP '\[\K[0-9]+(?=%\])' | head -1)
+# Get current capture volume (BusyBox-compatible)
+INITIAL_VOL=$(amixer -c "$CARD" sget Capture 2>/dev/null | grep -o '\[[0-9]*%\]' | head -1 | tr -d '[]%')
 echo "Initial capture volume: ${INITIAL_VOL}%"
 echo ""
 
@@ -92,7 +92,7 @@ echo ""
 
 read -p "Is Mopidy RUNNING now? (y/n) " -n 1 -r
 echo ""
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
     echo ""
     echo "Taking snapshot with Mopidy running..."
     snapshot_mixers "03_mopidy_running"
@@ -112,7 +112,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Noise present: $NOISE_EXISTS" > "$OUTPUT_DIR/noise_after_stop.txt"
     echo ""
 
-    if [[ $NOISE_EXISTS =~ ^[Yy]$ ]]; then
+    if [ "$NOISE_EXISTS" = "y" ] || [ "$NOISE_EXISTS" = "Y" ]; then
         echo "▶ Finding what changed..."
         echo "──────────────────────────────────────────────────────────────"
         echo ""
@@ -138,7 +138,7 @@ echo ""
 
 read -p "Try toggling Headphone mute? (y/n) " -n 1 -r
 echo ""
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
     echo ""
     echo "Muting Headphone..."
     amixer -c "$CARD" sset Headphone mute 2>/dev/null

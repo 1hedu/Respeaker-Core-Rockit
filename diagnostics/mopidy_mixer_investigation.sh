@@ -153,7 +153,7 @@ echo ""
 
 read -p "Is Mopidy currently RUNNING? (y/n) " -n 1 -r
 echo ""
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
     echo ""
     echo "──── Snapshot 1: WITH Mopidy Running ────"
     echo ""
