@@ -87,7 +87,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                 # Wait for wake word
                 if mic.wakeup('respeaker'):
                     logger.info('Wake word detected!')
-                    pixel_ring.think()  # Show thinking animation
+                    pixel_ring.listen()  # Show listening mode (green LEDs)
 
                     # Pause Mopidy playback while listening
                     if self.core.playback.get_state().get() == PlaybackState.PLAYING:
@@ -99,7 +99,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
 
                     if text:
                         logger.info('Recognized: "{0}"'.format(text))
-                        pixel_ring.speak()  # Show speaking animation
+                        pixel_ring.wait()  # Show processing (spinning green LEDs)
 
                         # Process command
                         self._process_command(text.lower())
