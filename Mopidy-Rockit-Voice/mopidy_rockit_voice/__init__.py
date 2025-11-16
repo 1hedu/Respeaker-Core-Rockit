@@ -110,10 +110,15 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
         if not RESPEAKER_AVAILABLE:
             return
 
-        mic = Microphone()
-
-        logger.info('Rockit Voice Control started. Listening for wake word...')
-        logger.info('MIDI target: {0}:{1}'.format(self.midi_host, self.midi_port))
+        try:
+            logger.info('Initializing microphone...')
+            mic = Microphone()
+            logger.info('Rockit Voice Control started. Listening for wake word...')
+            logger.info('MIDI target: {0}:{1}'.format(self.midi_host, self.midi_port))
+        except Exception as e:
+            logger.error('Failed to initialize microphone: {0}'.format(e))
+            logger.error('Voice control disabled. Check if another process is using the microphone.')
+            return
 
         while not self.quit_event.is_set():
             try:
