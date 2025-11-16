@@ -1,0 +1,51 @@
+────────────────────────────
+
+snd                    39205 15 snd_usb_audio
+snd_compress            6319  1 snd_soc_core
+snd_hwdep               4558  1 snd_usb_audio
+snd_mixer_oss          12601  1 snd_pcm_oss
+snd_pcm                60391  7 snd_usb_audio
+snd_pcm_oss            33873  0
+snd_rawmidi            15203  1 snd_usbmidi_lib
+snd_seq_device          4381  1 snd_rawmidi
+snd_soc_core           96806  4 snd_soc_mt76xx_machine
+snd_soc_mt76xx_i2s      1488  1
+snd_soc_mt76xx_i2s_ctl   40336  3 snd_soc_mt76xx_machine
+snd_soc_mt76xx_machine    1792  2
+snd_soc_mt76xx_pcm      2880  1
+snd_soc_wm8960         16912  1
+snd_timer              14590  1 snd_pcm
+snd_usb_audio          94150  0
+snd_usbmidi_lib        15361  1 snd_usb_audio
+
+▶ 8. DEVICE FILES & PERMISSIONS
+────────────────────────────────────────────────────────────────
+
+drwxr-xr-x    2 root     root           120 Nov 14 07:09 .
+drwxr-xr-x    5 root     root          1160 Nov 15 22:47 ..
+crw-r--r--    1 root     root      116,   0 Nov 14 07:09 controlC0
+crw-r--r--    1 root     root      116,  24 Nov 14 07:09 pcmC0D0c
+crw-r--r--    1 root     root      116,  16 Nov 14 07:09 pcmC0D0p
+crw-r--r--    1 root     root      116,  33 Nov 14 07:09 timer
+
+▶ 9. RECENT AUDIO-RELATED KERNEL MESSAGES
+────────────────────────────────────────────────────────────────
+
+[   19.210000] snd-soc-dummy snd-soc-dummy: no of_node; not parsing pinctrl DT
+[   19.390000] mt76xx-pcm mt76xx-pcm: no of_node; not parsing pinctrl DT
+[   19.390000] soc-audio soc-audio: no of_node; not parsing pinctrl DT
+[   19.390000] soc-audio soc-audio: ASoC: machine MTK APSoC I2S should use snd_soc_register_card()
+[   19.930000] soc-audio soc-audio: wm8960-hifi <-> mt76xx-i2s mapping ok
+[   20.140000] usbcore: registered new interface driver snd-usb-audio
+
+════════════════════════════════════════════════════════════════
+  INVESTIGATION COMPLETE
+════════════════════════════════════════════════════════════════
+
+Key things to check:
+  • Are any processes holding /dev/snd devices? (Section 2)
+  • What is the PCM device status? (Section 3)
+  • What are the current capture levels? (Section 4)
+  • Is Mopidy running and what device is it using? (Section 6)
+
+Run this script with: ./alsa_state_check.sh | tee alsa_state_20251116_000835.log
