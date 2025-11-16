@@ -36,6 +36,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
     Mopidy frontend that listens for voice commands and sends MIDI to Rockit synth.
 
     Keeps the microphone continuously claimed to avoid ALSA device release issues.
+    Uses keyword spotting for simple, reliable voice control.
     """
 
     def __init__(self, config, core):
@@ -48,15 +49,47 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
         self.midi_host = self.config['midi_host']
         self.midi_port = self.config['midi_port']
 
-        # Voice commands mapping
-        self.commands = {
-            'play': self._cmd_play_note,
-            'stop': self._cmd_stop_notes,
-            'louder': self._cmd_volume_up,
-            'quieter': self._cmd_volume_down,
-            'filter up': self._cmd_filter_up,
-            'filter down': self._cmd_filter_down,
+        # MIDI CC mappings for Rockit parameters
+        self.cc_map = {
+            'volume': 7,
+            'release': 70,
+            'resonance': 71,
+            'mix': 72,
+            'attack': 73,
+            'cutoff': 74,
+            'decay': 75,
+            'envelope': 85,
+            'sustain': 86,
+            'glide': 90,
         }
+
+        # Modifier values
+        self.modifiers = {
+            'up': 20,      # Increment by ~15%
+            'down': -20,   # Decrement by ~15%
+            'max': 127,
+            'min': 0,
+            'zero': 0,
+            'half': 64,
+            'on': 100,
+            'off': 0,
+        }
+
+        # Note mappings
+        self.notes = {
+            'c': 60,
+            'd': 62,
+            'e': 64,
+            'f': 65,
+            'g': 67,
+            'a': 69,
+            'b': 71,
+        }
+
+        # Current parameter values (for relative adjustments)
+        self.current_values = {}
+        for param in self.cc_map.keys():
+            self.current_values[param] = 64  # Start at middle
 
     def on_start(self):
         """Start the voice recognition thread"""
@@ -73,7 +106,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
         self.quit_event.set()
 
     def _run(self):
-        """Main loop: listen for wake word, recognize speech, send MIDI"""
+        """Main loop: listen for wake word, then command keywords"""
         if not RESPEAKER_AVAILABLE:
             return
 
@@ -93,7 +126,8 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                     if self.core.playback.get_state().get() == PlaybackState.PLAYING:
                         self.core.playback.pause()
 
-                    # Listen and recognize
+                    # Listen for command (use recognize which works with keywords)
+                    logger.info('Listening for command...')
                     data = mic.listen()
                     text = mic.recognize(data)
 
@@ -102,9 +136,9 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                         pixel_ring.wait()  # Show processing (spinning green LEDs)
 
                         # Process command
-                        self._process_command(text.lower())
+                        self._process_keywords(text.lower())
                     else:
-                        logger.info('No speech recognized')
+                        logger.info('No keywords recognized')
                         pixel_ring.off()
 
                     time.sleep(1)
@@ -115,18 +149,86 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                 pixel_ring.off()
                 time.sleep(1)
 
-    def _process_command(self, text):
-        """Process recognized voice command"""
-        logger.info('Processing command: {0}'.format(text))
+    def _process_keywords(self, text):
+        """Process recognized keywords and execute MIDI commands"""
+        logger.info('Processing keywords: {0}'.format(text))
 
-        # Check for known commands
-        for cmd_phrase, cmd_func in self.commands.items():
-            if cmd_phrase in text:
-                logger.info('Matched command: {0}'.format(cmd_phrase))
-                cmd_func(text)
-                return
+        words = text.split()
+        if not words:
+            logger.info('No words to process')
+            return
 
-        logger.info('Unknown command: {0}'.format(text))
+        # Check for note playing: "play [note]" or just "[note]"
+        if 'play' in words or 'note' in words:
+            for word in words:
+                if word in self.notes:
+                    self._play_note(self.notes[word])
+                    return
+            # Default to middle C if no note specified
+            self._play_note(60)
+            return
+
+        # Check for stop command
+        if 'stop' in words or 'mute' in words:
+            self._send_cc(123, 0)  # All notes off
+            logger.info('All notes off')
+            return
+
+        # Check for parameter control: "[parameter] [modifier]"
+        param = None
+        modifier = None
+
+        for word in words:
+            if word in self.cc_map:
+                param = word
+            if word in self.modifiers:
+                modifier = word
+
+        if param and modifier:
+            self._adjust_parameter(param, modifier)
+            return
+
+        # Check for parameter only (default to 'up')
+        if param:
+            self._adjust_parameter(param, 'up')
+            return
+
+        logger.info('No recognized command pattern in: {0}'.format(text))
+
+    def _adjust_parameter(self, param, modifier):
+        """Adjust a Rockit parameter via MIDI CC"""
+        cc_num = self.cc_map[param]
+        current = self.current_values[param]
+
+        # Calculate new value
+        if modifier in ['up', 'down']:
+            delta = self.modifiers[modifier]
+            new_value = current + delta
+        else:
+            new_value = self.modifiers[modifier]
+
+        # Clamp to MIDI range
+        new_value = max(0, min(127, new_value))
+
+        # Send MIDI
+        self._send_cc(cc_num, new_value)
+
+        # Update current value
+        self.current_values[param] = new_value
+
+        logger.info('{0} {1}: {2} -> {3} (CC{4})'.format(
+            param, modifier, current, new_value, cc_num))
+
+    def _play_note(self, note):
+        """Play a note"""
+        logger.info('Playing note {0}'.format(note))
+        self._send_midi([0x90, note, 100])  # Note on
+        time.sleep(0.5)
+        self._send_midi([0x80, note, 0])    # Note off
+
+    def _send_cc(self, cc_num, value):
+        """Send MIDI Control Change"""
+        self._send_midi([0xB0, cc_num, value])
 
     def _send_midi(self, midi_bytes):
         """Send raw MIDI bytes to Rockit synth via TCP"""
@@ -141,73 +243,6 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
         except Exception as e:
             logger.error('Failed to send MIDI: {0}'.format(e))
             return False
-
-    def _send_note_on(self, note, velocity=100):
-        """Send MIDI Note On (0x90)"""
-        return self._send_midi([0x90, note, velocity])
-
-    def _send_note_off(self, note):
-        """Send MIDI Note Off (0x80)"""
-        return self._send_midi([0x80, note, 0])
-
-    def _send_cc(self, cc_num, value):
-        """Send MIDI Control Change (0xB0)"""
-        return self._send_midi([0xB0, cc_num, value])
-
-    # ========================================================================
-    # Command Handlers
-    # ========================================================================
-
-    def _cmd_play_note(self, text):
-        """Play a note - could be expanded to parse note names"""
-        # Simple demo: play middle C (MIDI note 60)
-        note = 60
-
-        # Try to extract note from speech (simple matching)
-        note_names = {
-            'c': 60, 'see': 60,
-            'd': 62, 'dee': 62,
-            'e': 64,
-            'f': 65,
-            'g': 67,
-            'a': 69,
-            'b': 71,
-        }
-
-        for name, midi_note in note_names.items():
-            if name in text:
-                note = midi_note
-                break
-
-        logger.info('Playing note {0}'.format(note))
-        self._send_note_on(note, 100)
-        time.sleep(0.5)
-        self._send_note_off(note)
-
-    def _cmd_stop_notes(self, text):
-        """Stop all notes (MIDI All Notes Off)"""
-        logger.info('Stopping all notes')
-        self._send_cc(123, 0)  # CC 123 = All Notes Off
-
-    def _cmd_volume_up(self, text):
-        """Increase master volume (CC 7)"""
-        logger.info('Volume up')
-        self._send_cc(7, 110)  # Set to ~85%
-
-    def _cmd_volume_down(self, text):
-        """Decrease master volume (CC 7)"""
-        logger.info('Volume down')
-        self._send_cc(7, 64)  # Set to 50%
-
-    def _cmd_filter_up(self, text):
-        """Increase filter cutoff (CC 74)"""
-        logger.info('Filter up')
-        self._send_cc(74, 100)
-
-    def _cmd_filter_down(self, text):
-        """Decrease filter cutoff (CC 74)"""
-        logger.info('Filter down')
-        self._send_cc(74, 30)
 
     # ========================================================================
     # Mopidy Integration

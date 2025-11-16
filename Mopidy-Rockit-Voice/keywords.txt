@@ -1,0 +1,57 @@
+# Wake words (always active)
+respeaker /1e-30/
+alexa /1e-30/
+
+# Actions
+play /1e-20/
+stop /1e-20/
+mute /1e-20/
+note /1e-20/
+
+# Parameters (Rockit synth controls)
+cutoff /1e-20/
+volume /1e-20/
+attack /1e-20/
+decay /1e-20/
+release /1e-20/
+sustain /1e-20/
+resonance /1e-20/
+glide /1e-20/
+filter /1e-20/
+envelope /1e-20/
+oscillator /1e-20/
+wave /1e-20/
+tune /1e-20/
+drone /1e-20/
+mix /1e-20/
+
+# Modifiers
+up /1e-20/
+down /1e-20/
+max /1e-20/
+min /1e-20/
+zero /1e-20/
+half /1e-20/
+on /1e-20/
+off /1e-20/
+
+# Numbers (for incremental control)
+one /1e-20/
+two /1e-20/
+three /1e-20/
+four /1e-20/
+five /1e-20/
+six /1e-20/
+seven /1e-20/
+eight /1e-20/
+nine /1e-20/
+ten /1e-20/
+
+# Note names
+c /1e-20/
+d /1e-20/
+e /1e-20/
+f /1e-20/
+g /1e-20/
+a /1e-20/
+b /1e-20/
