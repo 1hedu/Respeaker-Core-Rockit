@@ -10,6 +10,7 @@ release/reclaim cycle that causes audio noise on ReSpeaker.
 from __future__ import unicode_literals
 
 import logging
+import os
 import socket
 import time
 from threading import Thread, Event
@@ -79,7 +80,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
         mic = Microphone()
 
         logger.info('Rockit Voice Control started. Listening for wake word...')
-        logger.info(f'MIDI target: {self.midi_host}:{self.midi_port}')
+        logger.info('MIDI target: {0}:{1}'.format(self.midi_host, self.midi_port))
 
         while not self.quit_event.is_set():
             try:
@@ -97,7 +98,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                     text = mic.recognize(data)
 
                     if text:
-                        logger.info(f'Recognized: "{text}"')
+                        logger.info('Recognized: "{0}"'.format(text))
                         pixel_ring.speak()  # Show speaking animation
 
                         # Process command
@@ -110,22 +111,22 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                     pixel_ring.off()
 
             except Exception as e:
-                logger.error(f'Error in voice recognition: {e}')
+                logger.error('Error in voice recognition: {0}'.format(e))
                 pixel_ring.off()
                 time.sleep(1)
 
     def _process_command(self, text):
         """Process recognized voice command"""
-        logger.info(f'Processing command: {text}')
+        logger.info('Processing command: {0}'.format(text))
 
         # Check for known commands
         for cmd_phrase, cmd_func in self.commands.items():
             if cmd_phrase in text:
-                logger.info(f'Matched command: {cmd_phrase}')
+                logger.info('Matched command: {0}'.format(cmd_phrase))
                 cmd_func(text)
                 return
 
-        logger.info(f'Unknown command: {text}')
+        logger.info('Unknown command: {0}'.format(text))
 
     def _send_midi(self, midi_bytes):
         """Send raw MIDI bytes to Rockit synth via TCP"""
@@ -135,10 +136,10 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
             sock.connect((self.midi_host, self.midi_port))
             sock.sendall(bytes(midi_bytes))
             sock.close()
-            logger.debug(f'Sent MIDI: {midi_bytes}')
+            logger.debug('Sent MIDI: {0}'.format(midi_bytes))
             return True
         except Exception as e:
-            logger.error(f'Failed to send MIDI: {e}')
+            logger.error('Failed to send MIDI: {0}'.format(e))
             return False
 
     def _send_note_on(self, note, velocity=100):
@@ -178,7 +179,7 @@ class RockitVoiceFrontend(pykka.ThreadingActor, core.CoreListener):
                 note = midi_note
                 break
 
-        logger.info(f'Playing note {note}')
+        logger.info('Playing note {0}'.format(note))
         self._send_note_on(note, 100)
         time.sleep(0.5)
         self._send_note_off(note)
