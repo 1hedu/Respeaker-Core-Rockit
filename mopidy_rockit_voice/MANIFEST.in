@@ -1,0 +1,2 @@
+include README.md
+include mopidy_rockit_voice/ext.conf
